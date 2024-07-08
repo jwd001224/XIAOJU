@@ -203,7 +203,6 @@ def xj_cmd_2(d_data: dict):  # 设备发送，平台接收
     start_addr = d_data.get("start_addr")
     data = d_data.get("data")
     serial_code = d_data.get("serial_code")
-    data_len = d_data.get("data_len")  # 用于记录要发送查询的数据长度  ，但实际协议中并没有该字段
 
 
 def xj_cmd_3(p_data: list):  # 平台发送，设备接收
@@ -1436,6 +1435,22 @@ def recv_buf_check(datas, protocol):
         return False
 
     return True
+
+
+# 字符串转换为小端序的16进制字节码
+def string_to_little_endian_hex_bytes(s):
+    utf8_bytes = s.encode('utf-8')  # 将字符串编码为UTF-8字节序列
+    hex_bytes = bytearray.fromhex(utf8_bytes.hex())  # 转换为16进制字节码
+    return hex_bytes[::-1]  # 将字节码逆序（小端序）
+
+
+# 数字转换为小端序的16进制字节码
+def number_to_little_endian_hex_bytes(num, byte_length):
+    if num < 0:
+        raise ValueError("Negative numbers are not supported")
+    hex_str = format(num, f"0{byte_length * 2}x")  # 将数字格式化为指定字节长度的16进制字符串
+    hex_bytes = bytes.fromhex(hex_str)  # 转换为16进制字节码
+    return hex_bytes[::-1]  # 将字节码逆序（小端序）
 
 
 def datadb_init():

@@ -110,3 +110,15 @@
 # protocol.cleck_func()
 # result = protocol.callback_func(protocol.datas)
 # print(result)
+
+import HStategrid
+# 示例用法
+number = 1234567890
+byte_length = 4  # 例如，使用4个字节来表示该数字
+hex_bytes = HStategrid.number_to_little_endian_hex_bytes(number, byte_length)
+print(hex_bytes)
+
+# 示例用法
+string_data = "Hello, World!"
+hex_bytes = HStategrid.string_to_little_endian_hex_bytes(string_data)
+print(hex_bytes)
