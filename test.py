@@ -2,7 +2,7 @@
 #
 # import paho.mqtt.client as mqtt
 #
-
+#
 #
 # # MQTT 代理的地址和端口
 # # broker = "epower-equipment-server-test.xiaojukeji.com"
@@ -34,12 +34,10 @@
 #
 #
 # def asd():
-#     # hex_string = """7D D0 8D 00 03 00 0A 00 01 00 00 00 6A 00 00 00 00 00 54 45 53 54 30 30 30 30 31 00 00 00 00 00 00 00 00 00 00 00 00
-#     # 00 00 00 00 00 00 00 00 00 00 00 01 00 01 00 00 00 00 02
-#     # 00 00 00 00 1E 00 00 01 1E 03 01 00 00 00 20 20 07 09 14 41 39 FF 00 00
-#     # 00 00 00 00 00 FF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 30 30
-#     # 30 30 30 30 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-#     # 00 00 00 00 00 00 00 00 00 00 65"""
+#     # hex_string = """7D D0 8D 00 03 00 0A 00 01 00 00 00 6A 00 00 00 00 00 54 45 53 54 30 30 30 30 31 00 00 00 00 00
+#     # 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 01 00 00 00 00 02 00 00 00 00 1E 00 00 01 1E 03 01
+#     # 00 00 00 20 20 07 09 14 41 39 FF 00 00 00 00 00 00 00 FF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 30 30
+#     # 30 30 30 30 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 65"""
 #
 #     hex_string = """
 #         7D D0
@@ -93,21 +91,22 @@
 # client.on_publish = on_publish
 # client.on_message = on_message
 #
-# # 连接到 MQTT 代理
-# client.connect(broker, port)
+# # # 连接到 MQTT 代理
+# # client.connect(broker, port)
+# #
+# # # 开始循环处理网络流量
+# # client.loop_forever()
 #
-# # 开始循环处理网络流量
-# client.loop_forever()
-
-
-import HStategrid
-messag = '7dd09700000a00030100000071000000000065706f7765722d65717569706d656e742d7365727665722e7869616f6a756b656a692e636f6d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005c0700001d'
-message = b'}\xc3\x97\x00\x00\n\x00\x03\x01\x00\x00\x00q\x00\x00\x00\x00\x00epower-equipment-server.xiaojukeji.com\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\\\x07\x00\x00\x1d'
-
-protocol = HStategrid.Protocol(message)
-protocol.Pprint()
-protocol.cleck_cmd()
-protocol.cleck_serial_code()
-protocol.cleck_func()
-result = protocol.callback_func(protocol.datas)
-print(result)
+#
+# import HStategrid
+# messag = '7dd09700000a00030100000071000000000065706f7765722d65717569706d656e742d7365727665722e7869616f6a756b656a692e636f6d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005c0700001d'
+# message = b'}\xc3\x97\x00\x00\n\x00\x03\x01\x00\x00\x00q\x00\x00\x00\x00\x00epower-equipment-server.xiaojukeji.com\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\\\x07\x00\x00\x1d'
+#
+# protocol = HStategrid.Protocol
+# protocol(message)
+# protocol.Pprint()
+# protocol.cleck_cmd()
+# protocol.cleck_serial_code()
+# protocol.cleck_func()
+# result = protocol.callback_func(protocol.datas)
+# print(result)

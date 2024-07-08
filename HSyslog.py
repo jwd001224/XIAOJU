@@ -67,6 +67,7 @@ def check_log_size(log_filename, max_size):
 
 def log_info(msg):
     try:
+        print(msg)
         logger.info(msg)
         check_log_size(log_filename, log_max_size)
     except Exception as e:
