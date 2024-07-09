@@ -88,8 +88,8 @@ class PMqttClient:
 
 
 def app_subscribe(msg: bytes, topic: str):
-    protocol = HStategrid.Protocol(msg)
-    if protocol.protocol_message():
+    protocol_encode = HStategrid.Protocol_Encode(msg)
+    if protocol_encode.protocol_message():
         protocol = None
 
 
@@ -217,3 +217,18 @@ def __mqtt_resv_data():
                     thmc.publish(msg.get("topic"), msg.get("msg", ""), msg.get("qos", 0))
             except Exception as e:
                 raise Exception("program exit")
+
+
+'''#################################### subscribe  analysis_msg ####################################'''
+
+
+def app_get_logicalserver_114():
+    info_114 = {
+        "equipment_id": "TEST00001",
+        "reserve": 0,
+    }
+    msg_data = HStategrid.xj_cmd_114(info_114)
+    protocol_decode = HStategrid.Protocol_Decode(msg_data, 114)
+    msg = protocol_decode.build_msg()
+    HStategrid.xj_send_data.put(msg)
+
