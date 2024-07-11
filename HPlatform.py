@@ -102,27 +102,6 @@ def modify_msg_head(msg: dict):
     return msg
 
 
-def app_publish(topic: str, msg_body: dict):
-    msg_dict = {'version': '1.1.1',
-                'package_num': -1,  # 包序号
-                'package_seq': 1,  # 包头序号
-                'sub_pkt_num': 1,  # 分包数量
-                'need_response': False,  # 消息是否需要确认
-                'body': msg_body
-                }
-    '''修改包头'''
-    msg_dict = modify_msg_head(msg_dict)
-    msg = json.dumps(msg_dict)
-    qos = app_func_dict[topic]["qos"]
-    msg = {"topic": topic, "msg": msg, "qos": qos}
-    if msg_body.get("info_id", -1) != -1:
-        if msg_body.get("info_id", -1) == 8:
-            HHhdlist.device_charfer_p[msg_body.get("gun_id") + 1]["stop_package_num"] = msg_dict.get("package_num")
-        elif msg_body.get("info_id", -1) == 6:
-            HHhdlist.device_charfer_p[msg_body.get("gun_id") + 1]["start_package_num"] = msg_dict.get("package_num")
-    DtoP_queue.put(msg)
-
-
 def keep_mqtt(broker, port):
     global thmc
     thmc = PMqttClient(broker, port)
@@ -187,6 +166,31 @@ def do_mqtt_send_data():
     HSyslog.log_info("do_mqtt_send_data")
 
 
+def __mqtt_resv_data():
+    while mqttThreadStatus:
+        if not HStategrid.xj_resv_data:
+            time.sleep(0.5)
+        else:
+            try:
+                if HStategrid.xj_resv_data.empty():
+                    time.sleep(0.5)
+                else:
+                    msg = HStategrid.xj_resv_data.get()
+                    for cmd, func in xj_to_hhd.item():
+                        if cmd == msg[0]:
+                            func(msg[1])
+                        else:
+                            print("参数错误")
+            except Exception as e:
+                raise Exception("program exit")
+
+
+def do_mqtt_resv_data():
+    mqttSendThread = threading.Thread(target=__mqtt_resv_data)
+    mqttSendThread.start()
+    HSyslog.log_info("do_mqtt_resv_data")
+
+
 def __mqtt_period_event(interval):
     period_time = time.time()
     while True:
@@ -200,22 +204,6 @@ def do_mqtt_period():
     mqttPeriodThread = threading.Thread(target=__mqtt_period_event, args=(interval,))
     mqttPeriodThread.start()
     HSyslog.log_info("do_mqtt_period")
-
-
-def __mqtt_resv_data():
-    while mqttThreadStatus:
-        if not HStategrid.xj_resv_data:
-            time.sleep(0.5)
-        else:
-            try:
-                if HStategrid.xj_resv_data.empty():
-                    time.sleep(0.5)
-                else:
-                    msg = HStategrid.xj_resv_data.get()
-                    if msg[0] not in HStategrid.xj_mqtt_cmd_enum:
-                        continue
-            except Exception as e:
-                raise Exception("program exit")
 
 
 '''################################################### 接收数据处理 ####################################################'''
@@ -356,133 +344,207 @@ def xj_to_hhd_1309():
 '''################################################### 发送数据处理 ####################################################'''
 
 
-def xj_to_hhd_2():
+def hhd_to_xj_2():
     pass
 
 
-def xj_to_hhd_4():
+def hhd_to_xj_4():
     pass
 
 
-def xj_to_hhd_6():
+def hhd_to_xj_6():
     pass
 
 
-def xj_to_hhd_8():
+def hhd_to_xj_8():
     pass
 
 
-def xj_to_hhd_12():
+def hhd_to_xj_12():
     pass
 
 
-def xj_to_hhd_24():
+def hhd_to_xj_24():
     pass
 
 
-def xj_to_hhd_34():
+def hhd_to_xj_34():
     pass
 
 
-def xj_to_hhd_36():
+def hhd_to_xj_36():
     pass
 
 
-def xj_to_hhd_40():
+def hhd_to_xj_40():
     pass
 
 
-def xj_to_hhd_102():
+def hhd_to_xj_102():
     pass
 
 
-def xj_to_hhd_104():
+def hhd_to_xj_104():
     pass
 
 
-def xj_to_hhd_106():
+def hhd_to_xj_106():
     pass
 
 
-def xj_to_hhd_108():
+def hhd_to_xj_108():
     pass
 
 
-def xj_to_hhd_114():
+def hhd_to_xj_114():
     pass
 
 
-def xj_to_hhd_118():
+def hhd_to_xj_118():
     pass
 
 
-def xj_to_hhd_120():
+def hhd_to_xj_120():
     pass
 
 
-def xj_to_hhd_302():
+def hhd_to_xj_302():
     pass
 
 
-def xj_to_hhd_304():
+def hhd_to_xj_304():
     pass
 
 
-def xj_to_hhd_306():
+def hhd_to_xj_306():
     pass
 
 
-def xj_to_hhd_308():
+def hhd_to_xj_308():
     pass
 
 
-def xj_to_hhd_310():
+def hhd_to_xj_310():
     pass
 
 
-def xj_to_hhd_312():
+def hhd_to_xj_312():
     pass
 
 
-def xj_to_hhd_202():
+def hhd_to_xj_202():
     pass
 
 
-def xj_to_hhd_206():
+def hhd_to_xj_206():
     pass
 
 
-def xj_to_hhd_410():
+def hhd_to_xj_410():
     pass
 
 
-def xj_to_hhd_502():
+def hhd_to_xj_502():
     pass
 
 
-def xj_to_hhd_504():
+def hhd_to_xj_504():
     pass
 
 
-def xj_to_hhd_510():
+def hhd_to_xj_510():
     pass
 
 
-def xj_to_hhd_802():
+def hhd_to_xj_802():
     pass
 
 
-def xj_to_hhd_1102():
+def hhd_to_xj_1102():
     pass
 
 
-def xj_to_hhd_1304():
+def hhd_to_xj_1304():
     pass
 
 
-def xj_to_hhd_1306():
+def hhd_to_xj_1306():
     pass
 
 
-def xj_to_hhd_1310():
+def hhd_to_xj_1310():
     pass
+
+
+'''################################################# 数据处理函数索引 ##################################################'''
+
+hhd_to_xj = {
+    2: hhd_to_xj_2,
+    4: hhd_to_xj_4,
+    6: hhd_to_xj_6,
+    8: hhd_to_xj_8,
+    12: hhd_to_xj_12,
+    24: hhd_to_xj_24,
+    34: hhd_to_xj_34,
+    36: hhd_to_xj_36,
+    40: hhd_to_xj_40,
+    102: hhd_to_xj_102,
+    104: hhd_to_xj_104,
+    106: hhd_to_xj_106,
+    108: hhd_to_xj_108,
+    114: hhd_to_xj_114,
+    118: hhd_to_xj_118,
+    120: hhd_to_xj_120,
+    302: hhd_to_xj_302,
+    304: hhd_to_xj_304,
+    306: hhd_to_xj_306,
+    308: hhd_to_xj_308,
+    310: hhd_to_xj_310,
+    312: hhd_to_xj_312,
+    202: hhd_to_xj_202,
+    206: hhd_to_xj_206,
+    410: hhd_to_xj_410,
+    502: hhd_to_xj_502,
+    504: hhd_to_xj_504,
+    510: hhd_to_xj_510,
+    802: hhd_to_xj_802,
+    1102: hhd_to_xj_1102,
+    1304: hhd_to_xj_1304,
+    1306: hhd_to_xj_1306,
+    1310: hhd_to_xj_1310,
+}
+xj_to_hhd = {
+    1: xj_to_hhd_1,
+    3: xj_to_hhd_3,
+    5: xj_to_hhd_5,
+    7: xj_to_hhd_7,
+    11: xj_to_hhd_11,
+    23: xj_to_hhd_23,
+    33: xj_to_hhd_33,
+    35: xj_to_hhd_35,
+    41: xj_to_hhd_41,
+    101: xj_to_hhd_101,
+    103: xj_to_hhd_103,
+    105: xj_to_hhd_105,
+    107: xj_to_hhd_107,
+    113: xj_to_hhd_113,
+    117: xj_to_hhd_117,
+    119: xj_to_hhd_119,
+    301: xj_to_hhd_301,
+    303: xj_to_hhd_303,
+    305: xj_to_hhd_305,
+    307: xj_to_hhd_307,
+    309: xj_to_hhd_309,
+    311: xj_to_hhd_311,
+    201: xj_to_hhd_201,
+    205: xj_to_hhd_205,
+    409: xj_to_hhd_409,
+    501: xj_to_hhd_501,
+    503: xj_to_hhd_503,
+    509: xj_to_hhd_509,
+    801: xj_to_hhd_801,
+    1101: xj_to_hhd_1101,
+    1303: xj_to_hhd_1303,
+    1305: xj_to_hhd_1305,
+    1309: xj_to_hhd_1309,
+}
