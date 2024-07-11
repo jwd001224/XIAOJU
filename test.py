@@ -2,7 +2,13 @@ import time
 import HStategrid
 import paho.mqtt.client as mqtt
 
-
+info_114 = {
+    "equipment_id": "TEST00001",
+    "reserve": 0,
+}
+msg = HStategrid.xj_cmd_114(info_114)
+send_114 = HStategrid.Protocol_Decode(msg, 114)
+msg = send_114.build_msg()
 
 # MQTT 代理的地址和端口
 # broker = "epower-equipment-server-test.xiaojukeji.com"
@@ -30,7 +36,7 @@ def on_connect(client, userdata, flags, rc):
         # 订阅主题或发送其他消息
         client.subscribe(client_id)  # 示例：订阅一个主题
         time.sleep(5)
-        client.publish(client_id, mas, 1)
+        client.publish(client_id, msg, 1)
     else:
         print(f"Connection failed with code {rc}")
 
@@ -42,7 +48,7 @@ def on_publish(client, userdata, mid):
 
 # 接收到消息时的回调函数
 def on_message(client, userdata, message):
-    print(f"Received message '{message.payload}' on topic '{message.topic}'")
+    print(f"Received message '{list(message.payload)}' on topic '{message.topic}'")
     print(type(message.payload.hex()))
 
 
@@ -51,11 +57,11 @@ client.on_connect = on_connect
 client.on_publish = on_publish
 client.on_message = on_message
 
-# 连接到 MQTT 代理
-client.connect(broker, port)
-
-# 开始循环处理网络流量
-client.loop_forever()
+# # 连接到 MQTT 代理
+# client.connect(broker, port)
+#
+# # 开始循环处理网络流量
+# client.loop_forever()
 
 
 # import HStategrid messag =
@@ -69,7 +75,6 @@ client.loop_forever()
 # protocol.cleck_func()
 # result = protocol.callback_func(protocol.datas)
 # print(result)
-
 
 
 # info_106 = {
@@ -122,12 +127,32 @@ client.loop_forever()
 # print(HStategrid.hex_to_little_info(stake_version, 3))
 # print(HStategrid.hex_to_little_info(mac, 0))
 
-info_114 = {
-    "equipment_id": "TEST00001",
-    "reserve": 0,
-}
-msg = HStategrid.xj_cmd_114(info_114)
-print(msg)
 
 # msg = HStategrid.xj_cmd_106(info)
 # print(msg)
+
+
+# test = [125, 208,
+#         149, 0,
+#         3, 0, 11, 0,
+#         0, 0, 0, 0,
+#         113, 0,
+#         0, 0, 0, 0,
+#         101, 112, 111, 119, 101, 114, 45, 101, 113, 117, 105, 112, 109, 101, 110, 116, 45, 115, 101, 114, 118, 101, 114,
+#         46, 120, 105, 97, 111, 106, 117, 107, 101, 106, 105, 46, 99, 111, 109, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+#         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+#         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+#         0, 0, 92, 7, 0, 0, 29]
+#
+# protocol = HStategrid.Protocol_Encode(test)
+# protocol.Pprint()
+# print(protocol.cleck_cmd())
+# print(protocol.cleck_serial_code())
+# print(protocol.cleck_header_code())
+# print(protocol.cleck_version_code())
+# protocol.cleck_func()
+# protocol.protocol_message()
+
+
+if 1 in HStategrid.xj_mqtt_cmd_enum:
+    print(1)

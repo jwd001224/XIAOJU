@@ -211,24 +211,278 @@ def __mqtt_resv_data():
                 if HStategrid.xj_resv_data.empty():
                     time.sleep(0.5)
                 else:
-                    msg = dict(HStategrid.xj_resv_data.get())
-                    if "topic" not in msg.keys():
+                    msg = HStategrid.xj_resv_data.get()
+                    if msg[0] not in HStategrid.xj_mqtt_cmd_enum:
                         continue
-                    thmc.publish(msg.get("topic"), msg.get("msg", ""), msg.get("qos", 0))
             except Exception as e:
                 raise Exception("program exit")
 
 
-'''#################################### subscribe  analysis_msg ####################################'''
+'''################################################### 接收数据处理 ####################################################'''
 
 
-def app_get_logicalserver_114():
-    info_114 = {
-        "equipment_id": "TEST00001",
-        "reserve": 0,
-    }
-    msg_data = HStategrid.xj_cmd_114(info_114)
-    protocol_decode = HStategrid.Protocol_Decode(msg_data, 114)
-    msg = protocol_decode.build_msg()
-    HStategrid.xj_send_data.put(msg)
+def xj_to_hhd_1():
+    pass
 
+
+def xj_to_hhd_3():
+    pass
+
+
+def xj_to_hhd_5():
+    pass
+
+
+def xj_to_hhd_7():
+    pass
+
+
+def xj_to_hhd_11():
+    pass
+
+
+def xj_to_hhd_23():
+    pass
+
+
+def xj_to_hhd_33():
+    pass
+
+
+def xj_to_hhd_35():
+    pass
+
+
+def xj_to_hhd_41():
+    pass
+
+
+def xj_to_hhd_101():
+    pass
+
+
+def xj_to_hhd_103():
+    pass
+
+
+def xj_to_hhd_105():
+    pass
+
+
+def xj_to_hhd_107():
+    pass
+
+
+def xj_to_hhd_113():
+    pass
+
+
+def xj_to_hhd_117():
+    pass
+
+
+def xj_to_hhd_119():
+    pass
+
+
+def xj_to_hhd_301():
+    pass
+
+
+def xj_to_hhd_303():
+    pass
+
+
+def xj_to_hhd_305():
+    pass
+
+
+def xj_to_hhd_307():
+    pass
+
+
+def xj_to_hhd_309():
+    pass
+
+
+def xj_to_hhd_311():
+    pass
+
+
+def xj_to_hhd_201():
+    pass
+
+
+def xj_to_hhd_205():
+    pass
+
+
+def xj_to_hhd_409():
+    pass
+
+
+def xj_to_hhd_501():
+    pass
+
+
+def xj_to_hhd_503():
+    pass
+
+
+def xj_to_hhd_509():
+    pass
+
+
+def xj_to_hhd_801():
+    pass
+
+
+def xj_to_hhd_1101():
+    pass
+
+
+def xj_to_hhd_1303():
+    pass
+
+
+def xj_to_hhd_1305():
+    pass
+
+
+def xj_to_hhd_1309():
+    pass
+
+
+'''################################################### 发送数据处理 ####################################################'''
+
+
+def xj_to_hhd_2():
+    pass
+
+
+def xj_to_hhd_4():
+    pass
+
+
+def xj_to_hhd_6():
+    pass
+
+
+def xj_to_hhd_8():
+    pass
+
+
+def xj_to_hhd_12():
+    pass
+
+
+def xj_to_hhd_24():
+    pass
+
+
+def xj_to_hhd_34():
+    pass
+
+
+def xj_to_hhd_36():
+    pass
+
+
+def xj_to_hhd_40():
+    pass
+
+
+def xj_to_hhd_102():
+    pass
+
+
+def xj_to_hhd_104():
+    pass
+
+
+def xj_to_hhd_106():
+    pass
+
+
+def xj_to_hhd_108():
+    pass
+
+
+def xj_to_hhd_114():
+    pass
+
+
+def xj_to_hhd_118():
+    pass
+
+
+def xj_to_hhd_120():
+    pass
+
+
+def xj_to_hhd_302():
+    pass
+
+
+def xj_to_hhd_304():
+    pass
+
+
+def xj_to_hhd_306():
+    pass
+
+
+def xj_to_hhd_308():
+    pass
+
+
+def xj_to_hhd_310():
+    pass
+
+
+def xj_to_hhd_312():
+    pass
+
+
+def xj_to_hhd_202():
+    pass
+
+
+def xj_to_hhd_206():
+    pass
+
+
+def xj_to_hhd_410():
+    pass
+
+
+def xj_to_hhd_502():
+    pass
+
+
+def xj_to_hhd_504():
+    pass
+
+
+def xj_to_hhd_510():
+    pass
+
+
+def xj_to_hhd_802():
+    pass
+
+
+def xj_to_hhd_1102():
+    pass
+
+
+def xj_to_hhd_1304():
+    pass
+
+
+def xj_to_hhd_1306():
+    pass
+
+
+def xj_to_hhd_1310():
+    pass
