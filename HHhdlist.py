@@ -1,172 +1,183 @@
+#!/bin/python3
+import json
+import os
 import queue
-import threading
+import re
+import subprocess
+import time
 from datetime import datetime
 from enum import Enum
 
+import HSyslog
+
 ota_version = None
-
+config_file = '/opt/hhd/ex_cloud/DeviceCode.json'
+config_directory = '/opt/hhd/ex_cloud/'
 device_mqtt_status = False
-qr_queue = queue.Queue()
-fee_queue = queue.Queue()
+package_num = 0  # 包序号
+Device_ready = False
+gun_num = 0
+qrcode_nums = 0
+hd_send_data = queue.Queue()
 
-device_charfer_p = {}  # 平台充电参数
-'''
-device_charfer_p{
-    1:{}
-    2:{}
+device_platform_data = queue.Queue()
+platform_device_data = queue.Queue()
+
+read_param_is = False
+write_param_is = False
+
+net_status = {
+    "netType": 6,
+    "sigVal": 4,
+    "netId": 2,
 }
-'''
 
-flaut_warning_type = {
-    "device": {
-        0x2000: [],
-        0x2001: [],
-        0x2002: [],
-        0x2003: [],
-        0x2004: [],
-        0x2005: [],
-        0x2006: [],
-        0x2007: [],
-        0x2008: [53, 54, 600, 608, 609],
-        0x2009: [],
-        0x200A: [],
-        0x200B: [],
-        0x200C: [],
-        0x200D: [24],
-        0x201E: [],
-        0x201F: [],
-        0x2020: [],
-        0x2021: [],
-        0x2022: [],
-        0x3000: [],
-        0x3001: [47],
-        0x3002: [16, 72],
-        0x3003: [15, 71],
-        0x3004: [21, 75],
-        0x3005: [400],
-        0x3007: [],
-        0x3008: [31, 406],
-        0x3009: [],
-        0x300A: [30, 44, 407, 408, 409, 612],
-        0x300B: [32],
-        0x3010: [100, 101],
-        0x3011: [108],
-        0x3012: [440, 441, 442, 443, 444, 445, 446, 447, 448, 449, 450, 451, 452, 453, 454, 455, 456],
-        0x3013: [],
-        0x3016: [80, 258],
-        0x3019: [110, 501],
-        0x301A: [22, 40, 92, 93],
-        0x301D: [38],
-        0x3022: [12, 39],
-        0x3028: [23],
-        0x3029: [46],
-        0x302A: [19, 96, 97, 98],
-        0x302C: [],
-        0x302D: [102, 103, 104, 503, 504, 505],
-        0x3031: [168],
-        0x3032: [903, 904, 905, 906, 907, 908],
-        0x3033: [],
-        0x3034: [],
-        0x3035: [],
-        0x3036: [],
-        0x3037: [],
-        0x3038: [],
-        0x303A: [],
-        0x4000: [42, 43, 112, 121, 122, 124, 125, 126, 401, 402, 457],
-        0x4001: [132, 133, 403],
-        0x4002: [135, 136, 405],
-        0x4003: [134, 404],
-        0x4004: [138],
-        0x4005: [18, 105, 506, 507, 508],
-        0x4006: [],
-        0x4007: [],
-        0x4008: [],
-        0x4009: [123],
-        0x400A: [111, 502],
-        0x400B: [],
-        0x400C: [17, 73],
-        0x400D: [],
-        0x400E: [],
-        0x400F: [],
-        0x4010: [],
+stop_fault_code = {
+    "1000": [0, 5],
+    "1001": [1],
+    "1002": [13, 14],
+    "1003": [7, 51, 59, 599],
+    "1004": [2, 3, 4],
+    "1005": [33],
+    "1006": [37],
+    "1007": [34],
+    "1008": [52],
+    "1009": [],
+    "100A": [],
+    "100B": [35, 36],
+    "100C": [6, 8, 57],
+    "100D": [],
 
-    },
-    "gun": {
-        0x1000: [5, 13, 191, 205, 227],
-        0x1001: [1],
-        0x1002: [],
-        0x1003: [2, 11, 51],
-        0x1004: [3, 4],
-        0x1005: [33],
-        0x1006: [37],
-        0x1007: [14, 34],
-        0x1008: [52],
-        0x1009: [95],
-        0x100A: [],
-        0x100B: [35, 229],
-        0x100C: [36, 57, 230],
-        0x100D: [20, 228],
-        0x3006: [261],
-        0x300C: [167],
-        0x300D: [91],
-        0x300E: [45, 58, 900, 901, 902],
-        0x300F: [99],
-        0x3014: [152, 153, 154, 157, 158, 159, 166, 604, 605, 606, 607],
-        0x3015: [94],
-        0x3017: [81, 82, 259, 260],
-        0x3018: [76, 77, 78, 79],
-        0x301B: [],
-        0x301C: [],
-        0x301E: [],
-        0x301F: [],
-        0x3020: [],
-        0x3021: [25, 26, 27],
-        0x302B: [],
-        0x302E: [165],
-        0x302F: [601, 603],
-        0x3030: [602, 610, 611],
-        0x3039: [55],
-        0x5000: [],
-        0x5001: [187],
-        0x5002: [192, 193],
-        0x5003: [202],
-        0x5004: [197],
-        0x5005: [224],
-        0x5006: [243],
-        0x5007: [209, 56],
-        0x5008: [],
-        0x5009: [],
-        0x500A: [184],
-        0x500B: [246, 249, 250, 251, 252, 253, 254, 255, 256],
-        0x500C: [156],
-        0x500D: [232],
-        0x500E: [233, 234],
-        0x500F: [],
-        0x5010: [131],
-        0x5011: [141, 181, 182, 183, 185, 186, 188, 189, 194, 195, 196, 198, 199, 200, 201, 203, 204, 210, 211, 212,
-                 221,
-                 222, 223, 225, 226, 231, 237, 239, 242, 244, 245, 247, 248, 257],
-        0x5012: [213],
-        0x5013: [214],
-        0x5014: [215],
-        0x5015: [216],
-        0x5016: [217],
-        0x5017: [218, 236],
-        0x5018: [219],
-        0x5019: [220, 235],
-        0x501A: [151],
-        0x501B: [],
-        0x501C: [155, 160, 161, 162, 163, 164, 190, 206, 207, 208, 238, 241],
-        0x501D: [],
-        0x501E: [],
-        0x501F: [],
-        0x5020: [],
-        0x5021: [137, 240],
-        0x5022: [139, 140],
-        0x5023: [],
-        0x5024: [],
+    "2000": [615, 616],
+    "2001": [],
+    "2002": [],
+    "2003": [],
+    "2004": [],
+    "2005": [],
+    "2006": [],
+    "2007": [],
+    "2008": [53, 54, 600, 608, 609],
+    "2009": [],
+    "200A": [],
+    "200B": [],
+    "200C": [21],
+    "200D": [24, 596],
+    "201E": [],
+    "201F": [],
+    "2020": [],
+    "2021": [],
+    "2022": [],
 
-    },
+    "3000": [177],
+    "3001": [47],
+    "3002": [16, 72],
+    "3003": [15, 71],
+    "3004": [75, 515, 516, 517, 518, 519, 520, 521, 522],
+    "3005": [400],
+    "3006": [261],
+    "3007": [],
+    "3008": [31, 406, 440, 441, 442, 443, 444, 445, 446, 447, 448, 449, 450, 451, 452, 453, 454, 455, 456, 457, 458],
+    "3009": [410],
+    "300A": [30, 407, 408, 409],
+    "300B": [32, 411],
+    "300C": [39],
+    "300D": [91],
+    "300E": [45, 50, 58],
+    "300F": [106],
+    "3010": [99, 100, 101, 169, 170, 171],
+    "3011": [107, 108],
+    "3012": [102, 103, 104],
+    "3013": [95],
+    "3014": [152, 153, 154, 157, 158, 159, 166, 167, 604, 605],
+    "3015": [9, 412, 413, 606, 607],
+    "3016": [80, 258, ],
+    "3017": [81, 82, 113, 114, 259, 260, 268],
+    "3018": [76, 77, 78, 79],
+    "3019": [109, 110, 500, 501],
+    "301A": [22, 23, 29, 40, 92, 93],
+    "301B": [172, 175, 617],
+    "301C": [],
+    "301D": [17, 28, 38, 41, 73, 74],
+    "301E": [],
+    "301F": [],
+    "3020": [],
+    "3021": [25, 26, 27, 46, 595],
+    "3022": [48, ],
+    "3028": [],
+    "3029": [49],
+    "302A": [19, 96, 97, 98, 506, 507, 508],
+    "302B": [],
+    "302C": [],
+    "302D": [503, 504, 505],
+    "302E": [165],
+    "302F": [60, 597, 598, 603],
+    "3030": [601, 602, 610, 611],
+    "3031": [44, 168, 612],
+    "3032": [],
+    "3033": [262, 263, 264, 265, 266, 267, 510, 511, 512, 513, 514],
+    "3034": [613],
+    "3035": [],
+    "3036": [],
+    "3037": [],
+    "3038": [],
+    "3039": [20, 55],
+    "303A": [],
+
+    "4000": [42, 43, 112, 121, 122, 124, 125, 126, 401, 402],
+    "4001": [131, 132, 133, 403],
+    "4002": [135, 136, 137, 404],
+    "4003": [134, 405],
+    "4004": [138, 614],
+    "4005": [18, 105],
+    "4006": [],
+    "4007": [],
+    "4008": [],
+    "4009": [123, 509],
+    "400A": [111, 502],
+    "400B": [],
+    "400C": [],
+    "400D": [],
+    "400E": [],
+    "400F": [],
+    "4010": [],
+
+    "5000": [],
+    "5001": [176, 187, 188, 189, 190, 191],
+    "5002": [],
+    "5003": [202, 203, 204, 205, 206, 207, 208],
+    "5004": [174, 197, 198, 199, ],
+    "5005": [224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242],
+    "5006": [243, 244, 245],
+    "5007": [56, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221],
+    "5008": [192, 193, 194, 195, 196],
+    "5009": [140, 160, 161, 163, 164, 181, 182, 183],
+    "500A": [184, 185, 186],
+    "500B": [246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 256],
+    "500C": [173, 200, 201],
+    "500D": [155, 156],
+    "500E": [],
+    "500F": [],
+    "5010": [],
+    "5011": [257, 618],
+    "5012": [],
+    "5013": [],
+    "5014": [],
+    "5015": [141],
+    "5016": [],
+    "5017": [222],
+    "5018": [],
+    "5019": [],
+    "501A": [151],
+    "501B": [],
+    "501C": [162, 223],
+    "501D": [],
+    "501E": [],
+    "501F": [],
+    "5020": [],
+    "5021": [],
+    "5022": [139],
+    "5023": [],
+    "5024": [],
 }
 
 chargeSys = {}  # 系统
@@ -178,47 +189,90 @@ bms = {}  # bms
 meter = {}  # 电表
 parkLock = {}  # 地锁
 
-authstart = threading.Event()
-gun_status = {}
-charger_status = {
-    "leisure": 0,
-    "starting": 1,
-    "charging": 2,
-    "stopping": 3,
-    "finish": 4,
-    "fault": 5,
-}
-
-bms_sum = {}
-
-topic_app_net_status = '/hqc/sys/network-state'
-topic_app_device_fault_query = '/hqc/cloud/event-notify/fault'
-topic_app_telemetry_remote_query = '/hqc/cloud/event-notify/info'
-topic_app_charge_request_response = '/hqc/main/event-reply/request-charge'
-topic_app_charge_control = '/hqc/main/event-notify/control-charge'
-topic_app_app_authentication_response = '/hqc/main/event-reply/check-vin'
-topic_app_charge_record_response = '/hqc/main/event-reply/charge-record'
-topic_app_charge_settlement = '/hqc/main/event-notify/charge-account'
-topic_app_account_recharge = '/hqc/cloud/event-notify/recharge'
-topic_app_charge_rate_request_response = '/hqc/cloud/event-reply/request-rate'
-topic_app_charge_start_strategy_request_response = '/hqc/cloud/event-reply/request-startup'
-topic_app_power_allocation_strategy_request_response = '/hqc/cloud/event-reply/request-dispatch'
-topic_app_offline_list_version_response = '/hqc/cloud/event-reply/request-offlinelist'
-topic_app_charge_session_response = '/hqc/main/event-reply/charge-session'
-topic_app_set_parameters = '/hqc/main/event-notify/update-param'
-topic_app_QR_code_update = '/hqc/main/event-notify/update-qrcode'
-topic_app_charge_rate_sync_message = '/hqc/main/event-notify/update-rate'
-topic_app_charge_start_strategy_sync = '/hqc/main/event-notify/update-startup'
-topic_app_power_allocation_strategy_sync = '/hqc/main/event-notify/update-dispatch'
-topic_app_offline_list_version_sync = '/hqc/main/event-notify/update-offlinelist'
-topic_app_offline_list_item_operation_log = '/hqc/main/event-notify/offlinelist-log'
-topic_app_clear_faults_events = '/hqc/main/event-notify/clear'
-topic_app_upgrade_control = '/hqc/sys/upgrade-notify/notify'
-topic_app_read_version_number = '/hqc/sys/upgrade-notify/version'
-topic_app_fetch_parameter = '/hqc/main/event-notify/read-param'
-topic_app_fetch_current_Historical_fault = '/hqc/main/event-notify/read-fault'
-topic_app_fetch_event = '/hqc/main/event-notify/read-event'
-topic_app_time_sync = '/hqc/sys/time-sync'
+topic_hqc_sys_network_state = '/hqc/sys/network-state'  # 网络状态消息
+topic_hqc_sys_time_sync = '/hqc/sys/time-sync'  # 时间同步消息
+topic_hqc_main_telemetry_notify_fault = '/hqc/main/telemetry-notify/fault'  # 设备故障消息
+topic_hqc_cloud_event_notify_fault = '/hqc/cloud/event-notify/fault'  # 设备故障查询消息
+topic_hqc_main_telemetry_notify_info = '/hqc/main/telemetry-notify/info'  # 遥测遥信消息
+topic_hqc_cloud_event_notify_info = '/hqc/cloud/event-notify/info'  # 遥测遥信查询消息
+topic_hqc_main_event_notify_request_charge = '/hqc/main/event-notify/request-charge'  # 充电请求消息
+topic_hqc_main_event_reply_request_charge = '/hqc/main/event-reply/request-charge'  # 充电请求应答消息
+topic_hqc_main_event_notify_control_charge = '/hqc/main/event-notify/control-charge'  # 充电控制消息
+topic_hqc_main_event_reply_control_charge = '/hqc/main/event-reply/control-charge'  # 充电控制应答消息
+topic_hqc_ui_event_notify_auth_gun = '/hqc/ui/event-notify/auth-gun'  # 鉴权绑定消息
+topic_hqc_main_event_notify_check_vin = '/hqc/main/event-notify/check-vin'  # 车辆VIN鉴权消息
+topic_hqc_main_event_reply_check_vin = '/hqc/main/event-reply/check-vin'  # 车辆VIN鉴权应答消息
+topic_hqc_main_event_notify_charge_record = '/hqc/main/event-notify/charge-record'  # 充电记录消息
+topic_hqc_main_event_reply_charge_record = '/hqc/main/event-reply/charge-record'  # 充电记录应答消息
+topic_hqc_main_event_notify_charge_cost = '/hqc/main/event-notify/charge-cost'  # 充电费用消息
+topic_hqc_main_event_notify_charge_elec = '/hqc/main/event-notify/charge-elec'  # 充电电量冻结消息
+topic_hqc_main_event_notify_charge_account = '/hqc/main/event-notify/charge-account'  # 充电结算消息
+topic_hqc_cloud_event_notify_recharge = '/hqc/cloud/event-notify/recharge'  # 账户充值消息
+topic_hqc_cloud_event_reply_recharge = '/hqc/cloud/event-reply/recharge'  # 账户充值应答消息
+topic_hqc_cloud_event_notify_balance_query = '/hqc/cloud/event-notify/balance-query'  # 账户余额查询消息
+topic_hqc_cloud_event_reply_balance_query = '/hqc/cloud/event-reply/balance-query'  # 账户余额查询结果消息
+topic_hqc_cloud_event_notify_request_rate = '/hqc/cloud/event-notify/request-rate'  # 充电系统费率请求消息
+topic_hqc_cloud_event_reply_request_rate = '/hqc/cloud/event-reply/request-rate'  # 充电系统费率请求应答消息
+topic_hqc_cloud_event_notify_query_rate = '/hqc/cloud/event-notify/query-rate'  # 充电系统费率查询消息
+topic_hqc_cloud_event_reply_query_rate = '/hqc/cloud/event-reply/query-rate'  # 充电系统费率查询结果消息
+topic_hqc_cloud_event_notify_request_gunrate = '/hqc/cloud/event-notify/request-gunrate'  # 充电枪费率请求消息
+topic_hqc_cloud_event_reply_request_gunrate = '/hqc/cloud/event-reply/request-gunrate'  # 充电枪费率请求应答消息
+topic_hqc_cloud_event_notify_query_gunrate = '/hqc/cloud/event-notify/query-gunrate'  # 充电枪费率查询消息
+topic_hqc_cloud_event_reply_query_gunrate = '/hqc/cloud/event-reply/query-gunrate'  # 充电枪费率查询结果消息
+topic_hqc_cloud_event_notify_request_startup = '/hqc/cloud/event-notify/request-startup'  # 充电启动策略请求消息
+topic_hqc_cloud_event_reply_request_startup = '/hqc/cloud/event-reply/request-startup'  # 充电启动策略请求应答消息
+topic_hqc_cloud_event_notify_query_startup = '/hqc/cloud/event-notify/query-startup'  # 充电启动策略查询消息
+topic_hqc_cloud_event_reply_query_startup = '/hqc/cloud/event-reply/query-startup'  # 充电启动策略查询结果消息
+topic_hqc_cloud_event_notify_request_dispatch = '/hqc/cloud/event-notify/request-dispatch'  # 功率分配策略请求消息
+topic_hqc_cloud_event_reply_request_dispatch = '/hqc/cloud/event-reply/request-dispatch'  # 功率分配策略请求应答消息
+topic_hqc_cloud_event_notify_query_dispatch = '/hqc/cloud/event-notify/query-dispatch'  # 功率分配策略查询消息
+topic_hqc_cloud_event_reply_query_dispatch = '/hqc/cloud/event-reply/query-dispatch'  # 功率分配策略查询结果消息
+topic_hqc_cloud_event_notify_request_offlinelist = '/hqc/cloud/event-notify/request-offlinelist'  # 离线名单版本请求消息
+topic_hqc_cloud_event_reply_request_offlinelist = '/hqc/cloud/event-reply/request-offlinelist'  # 离线名单版本应答消息
+topic_hqc_main_event_notify_charge_session = '/hqc/main/event-notify/charge-session'  # 充电会话消息
+topic_hqc_main_event_reply_charge_session = '/hqc/main/event-reply/charge-session'  # 充电会话应答消息
+topic_hqc_main_event_notify_update_param = '/hqc/main/event-notify/update-param'  # 设置参数消息
+topic_hqc_main_event_reply_update_param = '/hqc/main/event-reply/update-param'  # 设置参数应答消息
+topic_hqc_main_event_notify_update_qrcode = '/hqc/main/event-notify/update-qrcode'  # 二维码更新消息
+topic_hqc_main_event_notify_reserve_count_down = '/hqc/main/event-notify/reserve-count-down'  # 预约延时启动倒计时消息
+topic_hqc_cloud_event_notify_m1_secret = '/hqc/cloud/event-notify/m1-secret'  # M1卡密钥更新消息
+topic_hqc_cloud_event_reply_m1_secret = '/hqc/cloud/event-reply/m1-secret'  # M1卡密钥更新结果消息
+topic_hqc_main_event_reply_update_qrcode = '/hqc/main/event-reply/update-qrcode'  # 二维码更新应答消息
+topic_hqc_cloud_event_notify_pos_pre_transaction = '/hqc/cloud/event-notify/pos-pre-transaction'  # POS机预交易信息消息
+topic_hqc_cloud_event_notify_pos_charge_cost = '/hqc/cloud/event-notify/pos-charge-cost'  # POS机扣费消息
+topic_hqc_cloud_event_reply_pos_charge_cost = '/hqc/cloud/event-reply/pos-charge-cost'  # POS机扣费结果消息
+topic_hqc_cloud_event_notify_update_charge_order_id = '/hqc/cloud/event-notify/update-charge-order-id'  # 充电订单ID更新消息
+_hqc_cloud_event_reply_update_charge_order_id = '/hqc/cloud/event-reply/update-charge-order-id'  # 充电订单ID更新结果消息
+topic_hqc_main_event_notify_update_rate = '/hqc/main/event-notify/update-rate'  # 充电系统费率同步消息
+topic_hqc_main_event_reply_update_rate = '/hqc/main/event-reply/update-rate'  # 充电系统费率同步应答消息
+topic_hqc_main_event_notify_update_gunrate = '/hqc/main/event-notify/update-gunrate'  # 充电枪费率同步消息
+topic_hqc_main_event_reply_update_gunrate = '/hqc/main/event-reply/update-gunrate'  # 充电枪费率同步应答消息
+topic_hqc_main_event_notify_update_startup = '/hqc/main/event-notify/update-startup'  # 充电启动策略同步消息
+topic_hqc_main_event_reply_update_startup = '/hqc/main/event-reply/update-startup'  # 充电启动策略同步应答消息
+topic_hqc_main_event_notify_update_dispatch = '/hqc/main/event-notify/update-dispatch'  # 功率分配策略同步消息
+topic_hqc_main_event_reply_update_dispatch = '/hqc/main/event-reply/update-dispatch'  # 功率分配策略同步应答消息
+topic_hqc_main_event_notify_update_offlinelist = '/hqc/main/event-notify/update-offlinelist'  # 离线名单版本同步消息
+topic_hqc_main_event_reply_update_offflinelist = '/hqc/main/event-reply/update-offflinelist'  # 离线名单版本同步应答消息
+topic_hqc_main_event_notify_offlinelist_log = '/hqc/main/event-notify/offlinelist-log'  # 离线名单项操作日志消息
+topic_hqc_main_event_reply_offlinelist_log = '/hqc/main/event-reply/offlinelist-log'  # 离线名单项操作日志应答消息
+topic_hqc_main_event_notify_clear = '/hqc/main/event-notify/clear'  # 清除故障、事件消息
+topic_hqc_main_event_reply_clear = '/hqc/main/event-reply/clear'  # 清除故障、事件应答消息
+topic_hqc_sys_upgrade_notify_notify = '/hqc/sys/upgrade-notify/notify'  # 升级控制消息
+topic_hqc_sys_upgrade_reply_notify = '/hqc/sys/upgrade-reply/notify'  # 升级控制应答消息
+topic_hqc_sys_upgrade_notify_process = '/hqc/sys/upgrade-notify/process'  # 升级进度消息
+topic_hqc_sys_upgrade_notify_result = '/hqc/sys/upgrade-notify/result'  # 升级结果消息
+topic_hqc_sys_upload_notify_notify = '/hqc/sys/upload-notify/notify'  # 日志文件上传请求消息
+topic_hqc_sys_upload_reply_notify = '/hqc/sys/upload-reply/notify'  # 日志文件上传请求应答消息
+topic_hqc_sys_upgrade_notify_version = '/hqc/sys/upgrade-notify/version'  # 读取版本号消息
+topic_hqc_sys_upgrade_reply_version = '/hqc/sys/upgrade-reply/version'  # 读取版本号应答消息
+topic_hqc_sys_upgrade_notify_control_command = '/hqc/sys/upgrade-notify/control_command'  # 远程控制命令消息
+topic_hqc_sys_upgrade_reply_control_command = '/hqc/sys/upgrade-reply/control_command'  # 远程控制命令应答消息
+topic_hqc_main_event_notify_read_param = '/hqc/main/event-notify/read-param'  # 参数读取消息
+topic_hqc_main_event_reply_read_param = '/hqc/main/event-reply/read-param'  # 参数读取应答消息
+topic_hqc_main_event_notify_read_fault = '/hqc/main/event-notify/read-fault'  # 当前/历史故障读取消息
+topic_hqc_main_event_reply_read_fault = '/hqc/main/event-reply/read-fault'  # 当前/历史读取应答消息
+topic_hqc_main_event_notify_read_event = '/hqc/main/event-notify/read-event'  # 事件读取消息
+topic_hqc_main_event_reply_read_event = '/hqc/main/event-reply/read-event'  # 事件读取应答消息
 
 
 class net_type(Enum):  # 网络状态
@@ -238,152 +292,36 @@ class net_id(Enum):  # 网络运营商
     id_WIFI = 3
 
 
+class control_charge(Enum):  # 充电控制
+    start_charge = 1
+    stop_charge = 2
+    rev_charge = 3
+    rev_not_charge = 4
+
+
+class device_param_type(Enum):  # 设备分类
+    chargeSys = 0x00
+    cabinet = 0x01
+    gun = 0x02
+    pdu = 0x03
+    module = 0x04
+    bms = 0x05
+    meter = 0x06
+    parkLock = 0x07
+
+
+class device_ctrl_type(Enum):  # 设备硬件分类
+    TIU = 0x00
+    GCU = 0x01
+    PDU = 0x02
+    CCU = 0x03
+    DTU = 0x04
+    ACU = 0x05
+    UI = 0x1A
+    SDK = 0x1B
+
+
 #  充电枪遥测
-Gun_Pistol = {
-    0: None,
-    1: None,
-    2: None,
-    3: None,
-    4: None,
-    5: None,
-    6: None,
-    7: None,
-    8: None,
-    9: None,
-    10: None,
-    11: None,
-    12: None,
-    110: None,
-    111: None,
-    112: None,
-    113: None,
-    114: None,
-    115: None,
-    116: None,
-    117: None,
-    118: None,
-    119: None,
-    120: None,
-    121: None,
-    122: None,
-    123: None,
-    124: None,
-    125: None,
-    126: None,
-    127: None,
-    128: None,
-    129: None,
-    130: None,
-}
-
-#  充电系统遥测
-Device_Pistol = {
-    20: None,
-    21: None,
-    22: None,
-    23: None,
-    24: None,
-    25: None,
-    26: None,
-    27: None,
-    28: None,
-    29: None,
-    31: None,
-    32: None,
-}
-
-#  功率柜遥测
-Power_Pistol = {
-    0: None,
-    1: None,
-    2: None,
-    3: None,
-    4: None,
-    110: None,
-    111: None,
-    112: None,
-    113: None,
-    114: None,
-    115: None,
-    116: None,
-    117: None,
-    118: None,
-    119: None,
-}
-
-#  功率单元遥测
-Power_Unit_Pistol = {
-    1: None,
-    2: None,
-    3: None,
-    4: None,
-    5: None,
-    6: None,
-}
-
-#  功率控制遥信
-Power_Crrl_Plug = {
-    1: None,
-    2: None,
-    3: None,
-    4: None,
-    5: None,
-    6: None,
-}
-
-#  BMS遥测
-BMS_disposable_Pistol = {
-    0: None,
-    1: None,
-    2: None,
-    3: None,
-    4: None,
-    5: None,
-    6: None,
-    7: None,
-    8: None,
-    9: None,
-    10: None,
-    11: None,
-    12: None,
-    13: None,
-    14: None,
-    15: None,
-    16: None,
-    17: None,
-    18: None,
-    100: None,
-    101: None,
-    102: None,
-    103: None,
-    104: None,
-    105: None,
-    106: None,
-    107: None,
-    108: None,
-    109: None,
-    110: None,
-    111: None,
-    112: None,
-    113: None,
-}
-
-#  电表遥测
-Meter_Pistol = {
-    0: None,
-    1: None,
-    2: None,
-    3: None,
-    4: None,
-    5: None,
-    6: None,
-}
-
-#  地锁遥信
-Ground_Plug = {
-    0: None,
-    1: None,
-}
 
 
 def do_start_source(i):
@@ -409,4 +347,225 @@ def unix_time(unix_t):
 def unix_time_14(unix_t):
     dt_time = datetime.fromtimestamp(unix_t)
     return dt_time.strftime("%Y%m%d%H%M%S")
+
+
+def get_unix_time():
+    return int(time.time())
+
+
+def get_auxiliary_power_options(auxiliary_power_options):
+    if auxiliary_power_options == 0:
+        return 0x5A
+    if auxiliary_power_options == 1:
+        return 0xA5
+
+
+def get_reservation_status(reservation_status):
+    if reservation_status == 0x0A:
+        return 1
+    else:
+        return 0
+
+
+def get_control_reason(control_reason):
+    if control_reason == 0:
+        return 0x00
+    if control_reason == 1:
+        return 0x08
+    if control_reason == 2:
+        return 0x05
+    if control_reason == 3:
+        return 0x01
+    if control_reason == 4:
+        return 0x02
+
+
+def get_reply_check_vin_result(result):
+    if result == 0x01:
+        return 0x00
+    if result == 0x00:
+        return 0x01
+
+
+def get_reply_check_vin_reason(reason):
+    if reason == 0x00:
+        return 0x00
+    if reason == 0x01:
+        return 0x01
+    if reason == 0x02:
+        return 0x02
+    if reason == 0x03:
+        return 0x03
+    if reason == 0x04:
+        return 0x03
+
+
+def get_stop_reason(stop_code):
+    for stop_reason, reason_list in stop_fault_code.items():
+        if stop_code in reason_list:
+            return stop_reason
+
+
+def get_ip_from_resolv():
+    if os.path.getsize("/etc/resolv.conf") == 0:
+        with open("/etc/resolv.conf", 'a') as file:
+            file.write("nameserver 8.8.8.8\n")
+        return "8.8.8.8"
+    else:
+        with open("/etc/resolv.conf", 'r') as file:
+            lines = file.readlines()
+            # 提取最后一行中的 IP 地址
+            for line in lines:
+                if line.startswith("nameserver"):
+                    return "8.8.8.8"
+
+
+def ping_ip(IP):
+    ping_process = subprocess.Popen(
+        ['ping', '-c', '4', IP],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    ping_output, ping_error = ping_process.communicate()
+    return ping_output.decode('utf-8'), ping_process.returncode
+
+
+def parse_ping_output(output):
+    try:
+        loss_match = re.search(r'(\d+)% packet loss', output)
+        rtt_match = re.search(r'rtt min/avg/max/mdev = [\d.]+/([\d.]+)/[\d.]+/[\d.]+ ms', output)
+
+        if loss_match:
+            packet_loss = int(loss_match.group(1))
+        else:
+            packet_loss = 100  # 如果没有找到丢包率信息，则认为是100%丢包
+
+        if rtt_match:
+            average_latency = float(rtt_match.group(1))
+        else:
+            average_latency = None
+
+        return packet_loss, average_latency
+    except Exception as e:
+        print(f"Error parsing ping output: {e}")
+        return None, None
+
+
+def calculate_sigval(packet_loss, latency):
+    if latency is None:
+        return 0
+
+    if packet_loss < 100:
+        if 0 <= latency < 50:
+            sigVal = 4
+        elif 50 <= latency < 120:
+            sigVal = 3
+        elif 120 <= latency < 200:
+            sigVal = 2
+        elif 200 <= latency < 300:
+            sigVal = 1
+        else:
+            sigVal = 0
+        return sigVal
+    else:
+        return 0
+
+
+def get_ping():
+    IP = get_ip_from_resolv()
+    ping_output, return_code = ping_ip(IP)
+    if return_code == 0:
+        try:
+            packet_loss, average_latency = parse_ping_output(ping_output)
+            if packet_loss is not None and average_latency is not None:
+                if packet_loss <= 100:
+                    return 1
+                else:
+                    return 0
+        except Exception as e:
+            HSyslog.log_info(f"Error calculating sigVal: {e}")
+            return 0
+    else:
+        return 0
+
+
+def get_net():
+    IP = get_ip_from_resolv()
+    ping_output, return_code = ping_ip(IP)
+    try:
+        if return_code == 0:
+            try:
+                packet_loss, average_latency = parse_ping_output(ping_output)
+                # 检查丢包率
+                if packet_loss is not None and average_latency is not None:
+                    if packet_loss <= 90:
+                        net_status["sigVal"] = calculate_sigval(packet_loss, average_latency)
+                    else:
+                        net_status["sigVal"] = calculate_sigval(packet_loss, average_latency)
+            except Exception as e:
+                print(f"Error calculating sigVal: {e}")
+                return 0
+        else:
+            net_status["sigVal"] = 0
+    except Exception as e:
+        HSyslog.log_info(f"get_net: {return_code} . {ping_output} .{e}")
+
+    try:
+        # 获取网络接口信息
+        ifconfig_process = subprocess.Popen(['ifconfig'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ifconfig_output, _ = ifconfig_process.communicate()
+        # 检查网络接口类型
+        if 'wlan' in str(ifconfig_output):
+            net_status["netType"] = 5
+            net_status["netId"] = 3
+        elif 'eth' in str(ifconfig_output):
+            net_status["netType"] = 6
+            net_status["netId"] = 2
+        elif 'ppp0' in str(ifconfig_output):
+            net_status["netType"] = 2
+            net_status["netId"] = 1
+        else:
+            net_status["netType"] = 6
+            net_status["netId"] = 2
+    except Exception as e:
+        HSyslog.log_info(f"get_net: {return_code} . {ping_output} .{e}")
+
+
+def read_json_config(config_type, file_path=config_file):
+    try:
+        with open(file_path, 'r') as config_file:
+            config_data = json.load(config_file)
+            if config_data:
+                return config_data.get(config_type)
+    except FileNotFoundError:
+        print(f"文件 {file_path} 未找到。")
+    except json.JSONDecodeError:
+        print(f"无法解析文件 {file_path}。")
+    return None
+
+
+def save_json_config(config_data, file_path=config_file, directory_path=config_directory):
+    # 如果文件存在，先读取现有的配置
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, 'r') as config_file:
+                existing_config = json.load(config_file)
+        except json.JSONDecodeError:
+            HSyslog.log_info(f"无法解析文件 {file_path}。使用空配置。")
+            existing_config = {}
+    else:
+        # 如果文件不存在，初始化为空配置
+        os.makedirs(directory_path)
+        existing_config = {}
+
+    # 更新现有配置
+    existing_config.update(config_data)
+
+    # 保存更新后的配置
+    try:
+        with open(file_path, 'w') as config_file:
+            json.dump(existing_config, config_file, indent=4)
+        print(f"配置成功更新并保存到 {file_path}")
+    except Exception as e:
+        print(f"保存配置文件失败: {e}")
 
