@@ -1060,8 +1060,11 @@ def _hqc_cloud_event_notify_balance_query(msg_body_dict: dict):  # 账户余额�
     try:
         info = {
             "gun_id": gun_id,
-            "account_type": account_type
+            "card_id": account_type[0:16],
+            "random_id": account_type[16:],
+            "phy_id": account_type,
         }
+        HStategrid.Gun_list[gun_id].set_gun_charge({"total_cost": msg_body_dict.get('total_cost', -1)})
     except Exception as e:
         HSyslog.log_info(f"_hqc_cloud_event_notify_balance_query error: {e}")
 

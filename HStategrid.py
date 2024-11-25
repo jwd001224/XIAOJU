@@ -2375,7 +2375,7 @@ def tpp_cmd_118(data: dict):  # 设备发送，平台接收
         tpp_cmd_118_msg = []
         tpp_cmd_118_msg += info_to_hex(device_id, 32, Encode_type.ASCII.value)
         tpp_cmd_118_msg += info_to_hex(gun_id, 1, Encode_type.BIN.value)
-        tpp_cmd_118_msg += info_to_hex(fault_code, 4, Encode_type.BIN.value)
+        tpp_cmd_118_msg += info_to_hex(fault_code, 4, Encode_type.ASCII.value)
         tpp_cmd_118_msg += info_to_hex(fault_status, 1, Encode_type.BIN.value)
 
         if IS_DEBUG:
