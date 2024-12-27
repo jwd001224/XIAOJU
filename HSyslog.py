@@ -67,8 +67,16 @@ def check_log_size(log_filename, max_size):
 
 def log_info(msg):
     try:
-        print(msg)
-        logger.info(msg)
+        logger.info('\033[92m ' + msg + ' \033[0m')
+        check_log_size(log_filename, log_max_size)
+    except Exception as e:
+        print(f"\033[91m{e} .{inspect.currentframe().f_lineno}\033[0m")
+        print(f"\033[91m date_msg: {msg}\033[0m")
+
+
+def log_error(msg):
+    try:
+        logger.error('\033[91m ' + msg + ' \033[0m')
         check_log_size(log_filename, log_max_size)
     except Exception as e:
         print(f"\033[91m{e} .{inspect.currentframe().f_lineno}\033[0m")

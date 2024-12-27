@@ -24,7 +24,12 @@ def tpp_init(host, port):
     try:
         while True:
             if not HHhdlist.Device_ready:
-                time.sleep(1)
+                time.sleep(5)
+            else:
+                break
+        while True:
+            if HHhdlist.get_ping() == 0:
+                time.sleep(5)
             else:
                 break
         HStategrid.save_VerInfoEvt(0, HHhdlist.device_ctrl_type.SDK.value, "20.0.2", "A.0.1")
@@ -44,14 +49,12 @@ def tpp_init(host, port):
             HStategrid.save_DeviceInfo("charge_record_num", HStategrid.DB_Data_Type.DATA_INT.value, "", HStategrid.charge_record_num)
         HStategrid.save_DeviceInfo("device_charge_time", HStategrid.DB_Data_Type.DATA_INT.value, "", device_start_time)
         client = Client(host, port)
-        client.connect()
+        client.start_connect()
         do_mqtt_resv_data()
         do_device_platform_data()
         do_mqtt_period()
-
-        HStategrid.Platform_ready = True
     except Exception as e:
-        HSyslog.log_info(f"tpp_init error. {e}")
+        HSyslog.log_error(f"tpp_init error. {e}")
 
 
 class Client:
@@ -60,33 +63,47 @@ class Client:
         self.broker_port = broker_port
         self.keepalive = keepalive
         self.client_id = client_id
-        self.client = mqtt.Client(client_id=self.client_id)
+        self.client = None
+        self.connect_thread = None
         self.send_thread = None
-        self.client.username_pw_set("91110113MA01CF8F83", "JvL8so96zyM6ppaTPfEe2JRt9lsnJ07EhT/oQhcCAyuE7Eyo5RoQ0MXBIXyyD13cNN2LqK3ViHLKCFbE/IkKXpeDfIMpCWt8niVn29Vpaf38gtVf0ne7RWPpHC4PlP+gIWLPRVUV1ei1RSeCWfJ4GtDJ0fuOuq7ij0gq/4BIiKU=")
+
+    def start_connect(self):
+        if not self.connect_thread or not self.connect_thread.is_alive():
+            self.connect_thread = threading.Thread(target=self.connect, daemon=True)
+            self.connect_thread.start()
 
     def connect(self, isReady=False):
         """连接到MQTT服务器"""
         try:
-            try:
-                # 设置回调函数
-                self.client.on_connect = self._on_connect
-                self.client.on_disconnect = self._on_disconnect
-                self.client.on_message = self._on_message
+            while True:
+                if HStategrid.hand_status is False and HStategrid.hand_status is False:
+                    try:
+                        self.client = mqtt.Client(client_id=self.client_id)
+                        self.client.username_pw_set("91110113MA01CF8F83", "JvL8so96zyM6ppaTPfEe2JRt9lsnJ07EhT/oQhcCAyuE7Eyo5RoQ0MXBIXyyD13cNN2LqK3ViHLKCFbE/IkKXpeDfIMpCWt8niVn29Vpaf38gtVf0ne7RWPpHC4PlP+gIWLPRVUV1ei1RSeCWfJ4GtDJ0fuOuq7ij0gq/4BIiKU=")
 
-                self.client.connect(self.broker_address, self.broker_port, self.keepalive)
-                time.sleep(2)  # 等待连接结果
-                self.subscribe(HStategrid.Device_ID)
-                self.client.loop_start()  # 启动网络循环以处理连接
+                        # 设置回调函数
+                        self.client.on_connect = self._on_connect
+                        self.client.on_disconnect = self._on_disconnect
+                        self.client.on_message = self._on_message
 
-                isReady = True
-                HSyslog.log_info(f"Connected to MQTT broker at {self.broker_address}:{self.broker_port}")
-            except Exception as e:
-                HSyslog.log_info(f"Failed to connect to broker: {e}")
+                        self.client.connect(self.broker_address, self.broker_port, self.keepalive)
+                        time.sleep(2)  # 等待连接结果
+                        self.subscribe(HStategrid.Device_ID)
+                        self.client.loop_start()  # 启动网络循环以处理连接
 
-            if isReady:
-                self.start_send_thread()
+                        isReady = True
+                        HSyslog.log_info(f"Connected to MQTT broker at {self.broker_address}:{self.broker_port}")
+
+                    except Exception as e:
+                        HSyslog.log_info(f"Failed to connect to broker: {e}")
+                        time.sleep(5)
+                else:
+                    time.sleep(30)
+
+                if isReady:
+                    self.start_send_thread()
         except socket.error as e:
-            HSyslog.log_info(f"{HStategrid.red_char}connect_tpp: {e}{HStategrid.init_char}")
+            HSyslog.log_error(f"{HStategrid.red_char}connect_tpp: {e}{HStategrid.init_char}")
             time.sleep(5)
 
     def start_send_thread(self):
@@ -105,7 +122,8 @@ class Client:
         if rc == 0:
             HStategrid.hand_status = True
             hhd_to_tpp_106({})
-            HSyslog.log_info("Connected to MQTT Broker!")
+            HStategrid.Platform_ready = True
+            HSyslog.log_info(f"Connected to MQTT at {self.broker_address}:{self.broker_port}")
         else:
             HStategrid.connect_status = False
             HStategrid.hand_status = False
@@ -114,15 +132,16 @@ class Client:
     def _on_disconnect(self, client, userdata, rc):
         """断开连接时的回调函数"""
         try:
-            HSyslog.log_info("check connection is closed! rc = {}".format(rc))
+            HSyslog.log_info(f"check {HStategrid.platform_host} connection is closed! rc = {rc}")
+            self.client.loop_stop()
             HStategrid.connect_status = False
             HStategrid.hand_status = False
-            # 断线自动重连
-            if rc != 0:
-                HSyslog.log_info("Attempting to reconnect...")
-                self.reconnect()
+            # # 断线自动重连
+            # if rc != 0:
+            #     HSyslog.log_info("Attempting to reconnect...")
+            #     self.reconnect()
         except Exception as e:
-            HSyslog.log_info(f"MQTT.close: {e}")
+            HSyslog.log_error(f"MQTT.close: {e}")
 
     def reconnect(self):
         """重新连接到MQTT服务器"""
@@ -130,7 +149,7 @@ class Client:
             self.client.reconnect()
             HSyslog.log_info("Reconnected to MQTT broker")
         except Exception as e:
-            HSyslog.log_info(f"Reconnection failed: {e}")
+            HSyslog.log_error(f"Reconnection failed: {e}")
         time.sleep(10)
 
     def subscribe(self, topic):
@@ -148,7 +167,7 @@ class Client:
                     result = HStategrid.unpack(receive_msg)
                     # HSyslog.log_info(f"Received message: '{receive_msg}' on topic {topic}")
             except Exception as e:
-                HSyslog.log_info(f"_receive_messages: '{msg}' {e}")
+                HSyslog.log_error(f"_receive_messages: '{msg}' {e}")
 
     def _send_messages(self):
         """向主题发送消息"""
@@ -172,7 +191,7 @@ class Client:
                                 HSyslog.log_info(f"Failed to send message, result code: {result.rc}")
                             time.sleep(0.02)
                     except Exception as e:
-                        HSyslog.log_info(f"Send_to_Platform: {e}")
+                        HSyslog.log_error(f"Send_to_Platform: {e}")
             else:
                 if not HStategrid.tpp_send_data:
                     time.sleep(0.1)
@@ -200,7 +219,7 @@ def __mqtt_resv_data():
                         else:
                             HSyslog.log_info(f"__mqtt_resv_data： 参数错误--{msg}")
                 except Exception as e:
-                    HSyslog.log_info(f"__mqtt_resv_data error: {e}")
+                    HSyslog.log_error(f"__mqtt_resv_data error: {e}")
         else:
             if not HStategrid.tpp_resv_data:
                 time.sleep(0.1)
@@ -233,7 +252,7 @@ def __device_platform_data():
                     else:
                         HSyslog.log_info(f"__device_platform_data： 参数错误--{msg}")
             except Exception as e:
-                HSyslog.log_info(f"__device_platform_data error: {e}")
+                HSyslog.log_error(f"__device_platform_data error: {e}")
 
 
 def do_device_platform_data():
@@ -259,8 +278,7 @@ def __mqtt_period_event(interval_102, interval_104, interval_106):
                 period_time_106 = HStategrid.get_datetime_timestamp()
                 hhd_to_tpp_106({})
             time.sleep(1)
-        else:
-            time.sleep(1)
+        time.sleep(1)
 
 
 def do_mqtt_period():
@@ -335,7 +353,7 @@ def tpp_to_hhd_1(msg):
             }
         hhd_to_tpp_2(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_1'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_1'msg error: {msg}. {e}")
         return False
 
 
@@ -393,7 +411,7 @@ def tpp_to_hhd_3(msg):
             }
         hhd_to_tpp_4(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_3'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_3'msg error: {msg}. {e}")
         return False
 
 
@@ -433,7 +451,7 @@ def tpp_to_hhd_501(msg):
             }
         hhd_to_tpp_502(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_501'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_501'msg error: {msg}. {e}")
         return False
 
 
@@ -446,7 +464,7 @@ def tpp_to_hhd_505(msg):
         }
         hhd_to_tpp_506(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_505'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_505'msg error: {msg}. {e}")
         return False
 
 
@@ -477,7 +495,7 @@ def tpp_to_hhd_507(msg):
         }
         hhd_to_tpp_508(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_507'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_507'msg error: {msg}. {e}")
         return False
 
 
@@ -531,7 +549,7 @@ def tpp_to_hhd_511(msg):
         }
         hhd_to_tpp_512(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_511'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_511'msg error: {msg}. {e}")
         return False
 
 
@@ -575,7 +593,7 @@ def tpp_to_hhd_513(msg):
         }
         hhd_to_tpp_514(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_513'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_513'msg error: {msg}. {e}")
         return False
 
 
@@ -583,7 +601,7 @@ def tpp_to_hhd_515(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_515'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_515'msg error: {msg}. {e}")
         return False
 
 
@@ -652,7 +670,7 @@ def tpp_to_hhd_5(msg):
         }
         hhd_to_tpp_6(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_5'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_5'msg error: {msg}. {e}")
         return False
 
 
@@ -751,7 +769,7 @@ def tpp_to_hhd_7(msg):
             }
             hhd_to_tpp_8(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_7'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_7'msg error: {msg}. {e}")
         return False
 
 
@@ -774,7 +792,7 @@ def tpp_to_hhd_11(msg):
         else:
             pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_11'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_11'msg error: {msg}. {e}")
         return False
 
 
@@ -783,7 +801,7 @@ def tpp_to_hhd_13(msg):
         info = {}
         hhd_to_tpp_14(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_13'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_13'msg error: {msg}. {e}")
         return False
 
 
@@ -808,7 +826,7 @@ def tpp_to_hhd_15(msg):
         }
         hhd_to_tpp_16(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_15'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_15'msg error: {msg}. {e}")
         return False
 
 
@@ -833,7 +851,7 @@ def tpp_to_hhd_503(msg):
             }
         hhd_to_tpp_504(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_503'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_503'msg error: {msg}. {e}")
         return False
 
 
@@ -841,7 +859,7 @@ def tpp_to_hhd_17(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_17'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_17'msg error: {msg}. {e}")
         return False
 
 
@@ -868,7 +886,7 @@ def tpp_to_hhd_19(msg):
             }
         hhd_to_tpp_20(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_19'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_19'msg error: {msg}. {e}")
         return False
 
 
@@ -890,7 +908,7 @@ def tpp_to_hhd_101(msg):
                     pass
             HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_main_event_notify_update_qrcode, update_qrcode])
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_101'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_101'msg error: {msg}. {e}")
         return False
 
 
@@ -902,7 +920,7 @@ def tpp_to_hhd_103(msg):
         user_card_balance = msg.get("user_card_balance")
         card_balance_is = msg.get("card_balance_is")
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_103'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_103'msg error: {msg}. {e}")
         return False
 
 
@@ -916,7 +934,7 @@ def tpp_to_hhd_105(msg):
         HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_sys_time_sync, time_info])
         hhd_to_tpp_206({})
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_105'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_105'msg error: {msg}. {e}")
         return False
 
 
@@ -924,7 +942,7 @@ def tpp_to_hhd_113(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_113'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_113'msg error: {msg}. {e}")
         return False
 
 
@@ -932,7 +950,7 @@ def tpp_to_hhd_301(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_301'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_301'msg error: {msg}. {e}")
         return False
 
 
@@ -942,7 +960,7 @@ def tpp_to_hhd_303(msg):
         device_id = msg.get("device_id")
         charge_id = msg.get("charge_id")
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_303'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_303'msg error: {msg}. {e}")
         return False
 
 
@@ -952,7 +970,7 @@ def tpp_to_hhd_305(msg):
         device_id = msg.get("device_id")
         charge_id = msg.get("charge_id")
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_305'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_305'msg error: {msg}. {e}")
         return False
 
 
@@ -962,7 +980,7 @@ def tpp_to_hhd_307(msg):
         device_id = msg.get("device_id")
         charge_id = msg.get("charge_id")
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_307'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_307'msg error: {msg}. {e}")
         return False
 
 
@@ -972,7 +990,7 @@ def tpp_to_hhd_309(msg):
         device_id = msg.get("device_id")
         charge_id = msg.get("charge_id")
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_309'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_309'msg error: {msg}. {e}")
         return False
 
 
@@ -982,7 +1000,7 @@ def tpp_to_hhd_311(msg):
         device_id = msg.get("device_id")
         charge_id = msg.get("charge_id")
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_311'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_311'msg error: {msg}. {e}")
         return False
 
 
@@ -998,7 +1016,7 @@ def tpp_to_hhd_201(msg):
             }
             HStategrid.set_HistoryOrder(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_201'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_201'msg error: {msg}. {e}")
         return False
 
 
@@ -1015,7 +1033,7 @@ def tpp_to_hhd_205(msg):
             }
             HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_main_event_reply_charge_record, info])
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_205'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_205'msg error: {msg}. {e}")
         return False
 
 
@@ -1023,7 +1041,7 @@ def tpp_to_hhd_401(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_401'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_401'msg error: {msg}. {e}")
         return False
 
 
@@ -1043,7 +1061,7 @@ def tpp_to_hhd_23(msg):
         }
         hhd_to_tpp_24(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_23'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_23'msg error: {msg}. {e}")
         return False
 
 
@@ -1051,7 +1069,7 @@ def tpp_to_hhd_1303(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_1303'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_1303'msg error: {msg}. {e}")
         return False
 
 
@@ -1059,7 +1077,7 @@ def tpp_to_hhd_1305(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_1305'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_1305'msg error: {msg}. {e}")
         return False
 
 
@@ -1067,7 +1085,7 @@ def tpp_to_hhd_1307(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_1307'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_1307'msg error: {msg}. {e}")
         return False
 
 
@@ -1104,7 +1122,7 @@ def tpp_to_hhd_1309(msg):
             HStategrid.save_DeviceInfo("fee_model_id", HStategrid.DB_Data_Type.DATA_STR.value, update_fee.get("fee_model_id"), 0)
             HStategrid.save_FeeModel(contents)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_1309'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_1309'msg error: {msg}. {e}")
         info = {
             "result": 1
         }
@@ -1117,7 +1135,7 @@ def tpp_to_hhd_107(msg):
         gun_id = msg.get("gun_id")
         cmd_addr = msg.get("cmd_addr")
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_107'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_107'msg error: {msg}. {e}")
         return False
 
 
@@ -1126,7 +1144,7 @@ def tpp_to_hhd_117(msg):
         gun_id = msg.get("gun_id")
         fault_code = msg.get("fault_code")
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_117'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_117'msg error: {msg}. {e}")
         return False
 
 
@@ -1135,7 +1153,7 @@ def tpp_to_hhd_119(msg):
         gun_id = msg.get("gun_id")
         warn_code = msg.get("warn_code")
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_119'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_119'msg error: {msg}. {e}")
         return False
 
 
@@ -1143,7 +1161,7 @@ def tpp_to_hhd_407(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_407'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_407'msg error: {msg}. {e}")
         return False
 
 
@@ -1152,7 +1170,7 @@ def tpp_to_hhd_409(msg):
         log_file_nums = msg.get("log_file_nums")
 
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_409'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_409'msg error: {msg}. {e}")
         return False
 
 
@@ -1187,7 +1205,7 @@ def tpp_to_hhd_1101(msg):
             }
         hhd_to_tpp_1102(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_1101'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_1101'msg error: {msg}. {e}")
         return False
 
 
@@ -1200,7 +1218,7 @@ def tpp_to_hhd_801(msg):
         encrypt_version = msg.get("encrypt_version")
         encrypt_version_nums = msg.get("encrypt_version_nums")
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_801'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_801'msg error: {msg}. {e}")
         return False
 
 
@@ -1208,7 +1226,7 @@ def tpp_to_hhd_509(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_509'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_509'msg error: {msg}. {e}")
         return False
 
 
@@ -1248,7 +1266,7 @@ def tpp_to_hhd_33(msg):
             }
             HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_main_event_reply_check_vin, info])
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_33'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_33'msg error: {msg}. {e}")
         return False
 
 
@@ -1270,7 +1288,7 @@ def tpp_to_hhd_35(msg):
             }
             HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_main_event_reply_check_vin, info])
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_35'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_35'msg error: {msg}. {e}")
         return False
 
 
@@ -1278,7 +1296,7 @@ def tpp_to_hhd_37(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_37'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_37'msg error: {msg}. {e}")
         return False
 
 
@@ -1286,7 +1304,7 @@ def tpp_to_hhd_331(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_331'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_331'msg error: {msg}. {e}")
         return False
 
 
@@ -1343,7 +1361,7 @@ def tpp_to_hhd_41(msg):
             }
             hhd_to_tpp_8(info)
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_41'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_41'msg error: {msg}. {e}")
         return False
 
 
@@ -1351,7 +1369,7 @@ def tpp_to_hhd_43(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_43'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_43'msg error: {msg}. {e}")
         return False
 
 
@@ -1359,7 +1377,7 @@ def tpp_to_hhd_45(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_45'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_45'msg error: {msg}. {e}")
         return False
 
 
@@ -1367,7 +1385,7 @@ def tpp_to_hhd_81(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"tpp_to_hhd_81'msg error: {msg}. {e}")
+        HSyslog.log_error(f"tpp_to_hhd_81'msg error: {msg}. {e}")
         return False
 
 
@@ -1387,7 +1405,7 @@ def hhd_to_tpp_2(msg):
         }
         HStategrid.tpp_cmd_2(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_2'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_2'msg error: {msg}. {e}")
         return False
 
 
@@ -1403,7 +1421,7 @@ def hhd_to_tpp_4(msg):
         }
         HStategrid.tpp_cmd_4(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_4'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_4'msg error: {msg}. {e}")
         return False
 
 
@@ -1416,7 +1434,7 @@ def hhd_to_tpp_502(msg):
         }
         HStategrid.tpp_cmd_502(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_502'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_502'msg error: {msg}. {e}")
         return False
 
 
@@ -1429,7 +1447,7 @@ def hhd_to_tpp_506(msg):
         }
         HStategrid.tpp_cmd_506(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_506'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_506'msg error: {msg}. {e}")
         return False
 
 
@@ -1444,7 +1462,7 @@ def hhd_to_tpp_508(msg):
         }
         HStategrid.tpp_cmd_508(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_508'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_508'msg error: {msg}. {e}")
         return False
 
 
@@ -1457,7 +1475,7 @@ def hhd_to_tpp_512(msg):
         }
         HStategrid.tpp_cmd_512(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_512'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_512'msg error: {msg}. {e}")
         return False
 
 
@@ -1470,7 +1488,7 @@ def hhd_to_tpp_514(msg):
         }
         HStategrid.tpp_cmd_514(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_514'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_514'msg error: {msg}. {e}")
         return False
 
 
@@ -1478,7 +1496,7 @@ def hhd_to_tpp_516(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_516'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_516'msg error: {msg}. {e}")
         return False
 
 
@@ -1493,7 +1511,7 @@ def hhd_to_tpp_6(msg):
         }
         HStategrid.tpp_cmd_6(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_6'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_6'msg error: {msg}. {e}")
         return False
 
 
@@ -1554,7 +1572,7 @@ def hhd_to_tpp_8(msg):
             }
             HStategrid.tpp_cmd_8(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_8'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_8'msg error: {msg}. {e}")
         return False
 
 
@@ -1571,7 +1589,7 @@ def hhd_to_tpp_12(msg):
         }
         HStategrid.tpp_cmd_12(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_12'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_12'msg error: {msg}. {e}")
         return False
 
 
@@ -1601,7 +1619,7 @@ def hhd_to_tpp_14(msg):
         }
         HStategrid.tpp_cmd_14(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_14'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_14'msg error: {msg}. {e}")
         return False
 
 
@@ -1615,7 +1633,7 @@ def hhd_to_tpp_16(msg):
         }
         HStategrid.tpp_cmd_16(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_16'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_16'msg error: {msg}. {e}")
         return False
 
 
@@ -1627,7 +1645,7 @@ def hhd_to_tpp_504(msg):
         }
         HStategrid.tpp_cmd_504(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_504'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_504'msg error: {msg}. {e}")
         return False
 
 
@@ -1635,7 +1653,7 @@ def hhd_to_tpp_18(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_18'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_18'msg error: {msg}. {e}")
         return False
 
 
@@ -1648,7 +1666,7 @@ def hhd_to_tpp_20(msg):
         }
         HStategrid.tpp_cmd_20(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_20'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_20'msg error: {msg}. {e}")
         return False
 
 
@@ -1661,7 +1679,7 @@ def hhd_to_tpp_102(msg):
         HStategrid.Heartbeat += 1
         HStategrid.tpp_cmd_102(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_102'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_102'msg error: {msg}. {e}")
         return False
 
 
@@ -1745,8 +1763,8 @@ def hhd_to_tpp_104(msg=None):
                             "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                             "charge_time": HStategrid.Gun_list[gun_id].get_gun_charge("charge_time"),
                             "charge_kw_amount": 0,
-                            "start_meter": 0,
-                            "now_meter": 0,
+                            "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge("start_meter_value"),
+                            "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
                             "start_charge_type": start_charge_type,
                             "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy"),
                             "charge_policy_param": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy_param"),
@@ -1760,14 +1778,12 @@ def hhd_to_tpp_104(msg=None):
                             "device_temperature": 800,
                         }
                         for gun in gun_list:
-                            HSyslog.log_info(f"{gun}: {HStategrid.Gun_list[gun].get_gun_charge()}")
-                            HSyslog.log_info(f"{gun}: {HHhdlist.gun.get(gun, {})}")
+                            # HSyslog.log_info(f"{gun}: {HStategrid.Gun_list[gun].get_gun_charge()}")
+                            # HSyslog.log_info(f"{gun}: {HHhdlist.gun.get(gun, {})}")
                             info["charge_cost"] += HStategrid.Gun_list[gun].get_gun_charge("total_cost") // 10
                             info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
                             info["charge_kw_amount"] += HStategrid.Gun_list[gun].get_gun_charge("total_energy")
                             info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                            info["start_meter"] += HStategrid.Gun_list[gun].get_gun_charge("start_meter_value")
-                            info["now_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
                             info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
                     else:
                         info = {
@@ -1794,8 +1810,8 @@ def hhd_to_tpp_104(msg=None):
                             "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                             "charge_time": 0,
                             "charge_kw_amount": 0,
-                            "start_meter": 0,
-                            "now_meter": 0,
+                            "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge("start_meter_value"),
+                            "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
                             "start_charge_type": start_charge_type,
                             "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy"),
                             "charge_policy_param": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy_param"),
@@ -1809,12 +1825,10 @@ def hhd_to_tpp_104(msg=None):
                             "device_temperature": 800,
                         }
                         for gun in gun_list:
-                            HSyslog.log_info(f"{gun}: {HStategrid.Gun_list[gun].get_gun_charge()}")
-                            HSyslog.log_info(f"{gun}: {HHhdlist.gun.get(gun, {})}")
+                            # HSyslog.log_info(f"{gun}: {HStategrid.Gun_list[gun].get_gun_charge()}")
+                            # HSyslog.log_info(f"{gun}: {HHhdlist.gun.get(gun, {})}")
                             info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
                             info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                            info["start_meter"] += HStategrid.Gun_list[gun].get_gun_charge("start_meter_value")
-                            info["now_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
                             info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
                     HStategrid.tpp_cmd_104(info)
                 elif charge_status == HStategrid.Gun_Status.Charging_completed_not_unplugged.value:
@@ -1854,8 +1868,8 @@ def hhd_to_tpp_104(msg=None):
                         "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                         "charge_time": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("charge_time"),
                         "charge_kw_amount": 0,
-                        "start_meter": 0,
-                        "now_meter": 0,
+                        "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("start_meter_value"),
+                        "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
                         "start_charge_type": start_charge_type,
                         "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("charge_policy"),
                         "charge_policy_param": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("charge_policy_param"),
@@ -1873,8 +1887,6 @@ def hhd_to_tpp_104(msg=None):
                         info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
                         info["charge_kw_amount"] += HStategrid.Gun_list[gun].get_gun_charge_reserve("total_energy")
                         info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                        info["start_meter"] += HStategrid.Gun_list[gun].get_gun_charge_reserve("start_meter_value")
-                        info["now_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
                         info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
                     HStategrid.tpp_cmd_104(info)
         else:
@@ -1954,8 +1966,8 @@ def hhd_to_tpp_104(msg=None):
                         "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                         "charge_time": HStategrid.Gun_list[gun_id].get_gun_charge("charge_time"),
                         "charge_kw_amount": 0,
-                        "start_meter": 0,
-                        "now_meter": 0,
+                        "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge("start_meter_value"),
+                        "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
                         "start_charge_type": start_charge_type,
                         "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy"),
                         "charge_policy_param": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy_param"),
@@ -1973,8 +1985,6 @@ def hhd_to_tpp_104(msg=None):
                         info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
                         info["charge_kw_amount"] += HStategrid.Gun_list[gun].get_gun_charge("total_energy")
                         info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                        info["start_meter"] += HStategrid.Gun_list[gun].get_gun_charge("start_meter_value")
-                        info["now_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
                         info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
                 else:
                     info = {
@@ -2001,8 +2011,8 @@ def hhd_to_tpp_104(msg=None):
                         "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                         "charge_time": 0,
                         "charge_kw_amount": 0,
-                        "start_meter": 0,
-                        "now_meter": 0,
+                        "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge("start_meter_value"),
+                        "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
                         "start_charge_type": start_charge_type,
                         "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy"),
                         "charge_policy_param": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy_param"),
@@ -2018,8 +2028,6 @@ def hhd_to_tpp_104(msg=None):
                     for gun in gun_list:
                         info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
                         info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                        info["start_meter"] += HStategrid.Gun_list[gun].get_gun_charge("start_meter_value")
-                        info["now_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
                         info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
                 HStategrid.tpp_cmd_104(info)
             elif charge_status == HStategrid.Gun_Status.Charging_completed_not_unplugged.value:
@@ -2059,8 +2067,8 @@ def hhd_to_tpp_104(msg=None):
                     "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                     "charge_time": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("charge_time"),
                     "charge_kw_amount": 0,
-                    "start_meter": 0,
-                    "now_meter": 0,
+                    "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("start_meter_value"),
+                    "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
                     "start_charge_type": start_charge_type,
                     "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("charge_policy"),
                     "charge_policy_param": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("charge_policy_param"),
@@ -2078,12 +2086,10 @@ def hhd_to_tpp_104(msg=None):
                     info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
                     info["charge_kw_amount"] += HStategrid.Gun_list[gun].get_gun_charge_reserve("total_energy")
                     info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                    info["start_meter"] += HStategrid.Gun_list[gun].get_gun_charge_reserve("start_meter_value")
-                    info["now_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
                     info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
                 HStategrid.tpp_cmd_104(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_104'msg error: {e}")
+        HSyslog.log_error(f"hhd_to_tpp_104'msg error: {e}")
         return False
 
 
@@ -2118,7 +2124,7 @@ def hhd_to_tpp_106(msg):
             gun_info.set_gun_qr(f"{HStategrid.gun_qrcode}{HStategrid.Device_ID}{gun_id}")
             HStategrid.save_DeviceInfo(f"qrcode_{gun_info.gun_id + 1}", HStategrid.DB_Data_Type.DATA_STR.value, f"{HStategrid.gun_qrcode}{HStategrid.Device_ID}{gun_info.gun_id + 1}", 0)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_106'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_106'msg error: {msg}. {e}")
         return False
 
 
@@ -2126,7 +2132,7 @@ def hhd_to_tpp_114(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_114'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_114'msg error: {msg}. {e}")
         return False
 
 
@@ -2134,7 +2140,7 @@ def hhd_to_tpp_302(msg=None):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_302'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_302'msg error: {msg}. {e}")
         return False
 
 
@@ -2172,7 +2178,7 @@ def hhd_to_tpp_304(msg):
         }
         HStategrid.tpp_cmd_304(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_304'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_304'msg error: {msg}. {e}")
         return False
 
 
@@ -2241,7 +2247,7 @@ def hhd_to_tpp_306(msg=None):
             }
             HStategrid.tpp_cmd_306(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_306'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_306'msg error: {msg}. {e}")
         return False
 
 
@@ -2259,7 +2265,7 @@ def hhd_to_tpp_308(msg):
         }
         HStategrid.tpp_cmd_308(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_308'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_308'msg error: {msg}. {e}")
         return False
 
 
@@ -2277,7 +2283,7 @@ def hhd_to_tpp_310(msg):
         }
         HStategrid.tpp_cmd_310(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_310'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_310'msg error: {msg}. {e}")
         return False
 
 
@@ -2290,8 +2296,10 @@ def hhd_to_tpp_312(msg):
             "charge_id": HStategrid.Gun_list[gun_id].get_gun_charge("charge_id"),
             "charge_status": HStategrid.Gun_list[gun_id].get_gun_status(),
             "bst_stop_soc": HHhdlist.bms.get(gun_id, {}).get(106, 0),
-            "bsd_battery_low_voltage": HHhdlist.bms.get(gun_id, {}).get(18, 0),
-            "bsd_battery_high_voltage": HHhdlist.bms.get(gun_id, {}).get(105, 0),
+            # "bsd_battery_low_voltage": HHhdlist.bms.get(gun_id, {}).get(18, 0),
+            # "bsd_battery_high_voltage": HHhdlist.bms.get(gun_id, {}).get(105, 0),
+            "bsd_battery_low_voltage": HHhdlist.bms.get(gun_id, {}).get(18, 0) * 10,
+            "bsd_battery_high_voltage": 0,
             "bsd_battery_low_temperature": HHhdlist.bms.get(gun_id, {}).get(111, 0),
             "bsd_battery_high_temperature": HHhdlist.bms.get(gun_id, {}).get(109, 0),
             "bem_2560_00": 0x00,
@@ -2305,7 +2313,7 @@ def hhd_to_tpp_312(msg):
         }
         HStategrid.tpp_cmd_312(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_312'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_312'msg error: {msg}. {e}")
         return False
 
 
@@ -2494,7 +2502,7 @@ def hhd_to_tpp_202(msg):
                 HStategrid.Gun_list[gun_id].gun_charge_cost = False
                 HStategrid.Gun_list[gun_id].gun_charge_session = False
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_202'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_202'msg error: {msg}. {e}")
         return False
 
 
@@ -2506,7 +2514,7 @@ def hhd_to_tpp_206(msg):
             order = HStategrid.get_DeviceOrder_pa_id(charge_id)
             HStategrid.tpp_cmd_202(order)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_206'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_206'msg error: {msg}. {e}")
         return False
 
 
@@ -2514,7 +2522,7 @@ def hhd_to_tpp_402(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_402'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_402'msg error: {msg}. {e}")
         return False
 
 
@@ -2526,7 +2534,7 @@ def hhd_to_tpp_24(msg):
         }
         HStategrid.tpp_cmd_24(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_24'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_24'msg error: {msg}. {e}")
         return False
 
 
@@ -2534,7 +2542,7 @@ def hhd_to_tpp_1304(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_1304'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_1304'msg error: {msg}. {e}")
         return False
 
 
@@ -2542,7 +2550,7 @@ def hhd_to_tpp_1306(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_1306'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_1306'msg error: {msg}. {e}")
         return False
 
 
@@ -2550,7 +2558,7 @@ def hhd_to_tpp_1308(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_1308'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_1308'msg error: {msg}. {e}")
         return False
 
 
@@ -2568,7 +2576,7 @@ def hhd_to_tpp_1310(msg):
             }
         HStategrid.tpp_cmd_1310(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_1310'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_1310'msg error: {msg}. {e}")
         return False
 
 
@@ -2587,7 +2595,7 @@ def hhd_to_tpp_108(msg):
             }
             hhd_to_tpp_304(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_108'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_108'msg error: {msg}. {e}")
         return False
 
 
@@ -2595,8 +2603,15 @@ def hhd_to_tpp_118(msg):
     try:
         for gun_info in HStategrid.Gun_list:
             gun_fault = gun_info.get_gun_fault()
+            HSyslog.log_info(f"gun_fault: {gun_fault}")
             if gun_fault == {}:
-                pass
+                info = {
+                    "gun_id": gun_info.gun_id + 1,
+                    "device_id": HStategrid.Device_ID,
+                    "fault_code": "0000",
+                    "fault_status": 1
+                }
+                HStategrid.tpp_cmd_118(info)
             else:
                 for fault_code, fault_info in gun_fault.items():
                     info = {
@@ -2607,30 +2622,30 @@ def hhd_to_tpp_118(msg):
                     }
                     HStategrid.tpp_cmd_118(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_118'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_118'msg error: {msg}. {e}")
         return False
 
 
 def hhd_to_tpp_120(msg):
     try:
         for gun_info in HStategrid.Gun_list:
-            if gun_info.get_gun_status() == HStategrid.Gun_Status.Charging.value:
-                gun_warn = gun_info.get_gun_warn()
-                if gun_warn == {}:
-                    pass
-                else:
-                    for warn_code, warn_info in gun_warn.items():
-                        info = {
-                            "gun_id": gun_info.gun_id + 1,
-                            "device_id": HStategrid.Device_ID,
-                            "warn_code": warn_info.get("warn_id"),
-                            "charge_id": "",
-                            "warn_type": 1,
-                            "warn_value": 0
-                        }
-                        HStategrid.tpp_cmd_120(info)
+            gun_warn = gun_info.get_gun_warn()
+            HSyslog.log_info(f"gun_warn: {gun_warn}")
+            if gun_warn == {}:
+                pass
+            else:
+                for warn_code, warn_info in gun_warn.items():
+                    info = {
+                        "gun_id": gun_info.gun_id + 1,
+                        "device_id": HStategrid.Device_ID,
+                        "warn_code": warn_info.get("warn_id", "0000"),
+                        "charge_id": "",
+                        "warn_type": 1,
+                        "warn_value": 0
+                    }
+                    HStategrid.tpp_cmd_120(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_120'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_120'msg error: {msg}. {e}")
         return False
 
 
@@ -2638,7 +2653,7 @@ def hhd_to_tpp_408(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_408'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_408'msg error: {msg}. {e}")
         return False
 
 
@@ -2646,7 +2661,7 @@ def hhd_to_tpp_410(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_410'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_410'msg error: {msg}. {e}")
         return False
 
 
@@ -2658,7 +2673,7 @@ def hhd_to_tpp_1102(msg):
         }
         HStategrid.tpp_cmd_1102(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_1102'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_1102'msg error: {msg}. {e}")
         return False
 
 
@@ -2666,7 +2681,7 @@ def hhd_to_tpp_802(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_802'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_802'msg error: {msg}. {e}")
         return False
 
 
@@ -2674,7 +2689,7 @@ def hhd_to_tpp_510(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_510'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_510'msg error: {msg}. {e}")
         return False
 
 
@@ -2690,7 +2705,7 @@ def hhd_to_tpp_34(msg):
         }
         HStategrid.tpp_cmd_34(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_34'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_34'msg error: {msg}. {e}")
         return False
 
 
@@ -2704,7 +2719,7 @@ def hhd_to_tpp_36(msg):
         }
         HStategrid.tpp_cmd_36(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_36'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_36'msg error: {msg}. {e}")
         return False
 
 
@@ -2712,7 +2727,7 @@ def hhd_to_tpp_38(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_38'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_38'msg error: {msg}. {e}")
         return False
 
 
@@ -2720,7 +2735,7 @@ def hhd_to_tpp_332(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_332'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_332'msg error: {msg}. {e}")
         return False
 
 
@@ -2734,7 +2749,7 @@ def hhd_to_tpp_40(msg):
         }
         HStategrid.tpp_cmd_40(info)
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_40'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_40'msg error: {msg}. {e}")
         return False
 
 
@@ -2742,7 +2757,7 @@ def hhd_to_tpp_42(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_42'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_42'msg error: {msg}. {e}")
         return False
 
 
@@ -2750,7 +2765,7 @@ def hhd_to_tpp_44(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_44'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_44'msg error: {msg}. {e}")
         return False
 
 
@@ -2758,7 +2773,7 @@ def hhd_to_tpp_80(msg):
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"hhd_to_tpp_80'msg error: {msg}. {e}")
+        HSyslog.log_error(f"hhd_to_tpp_80'msg error: {msg}. {e}")
         return False
 
 

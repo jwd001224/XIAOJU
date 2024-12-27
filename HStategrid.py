@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import struct
+import threading
 from datetime import datetime
 import inspect
 import queue
@@ -142,7 +143,7 @@ def tpp_cmd_1(data: list):  # 平台发送，设备接收
                 data_type = cleck_code_1.get(data_addr).get("encode")[1]
                 data_len = cleck_code_1.get(data_addr).get("encode")[0]
             else:
-                HSyslog.log_info(f"cleck_code_1 error: {data_addr}")
+                HSyslog.log_error(f"cleck_code_1 error: {data_addr}")
                 return {}
             info = {
                 "reserved": hex_to_info(data[0:4], Encode_type.BIN.value),  # 保留字节
@@ -168,7 +169,7 @@ def tpp_cmd_1(data: list):  # 平台发送，设备接收
             HSyslog.log_info(f"tpp_cmd_1: {info}")
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_1 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_1 error: .{data} .{e}")
         return {}
 
 
@@ -188,7 +189,7 @@ def tpp_cmd_2(data: dict):  # 设备发送，平台接收
             data_type = cleck_code_1.get(data_addr).get("encode")[1]
             data_len = cleck_code_1.get(data_addr).get("encode")[0]
         else:
-            HSyslog.log_info(f"cleck_code_1 error: {data_addr}")
+            HSyslog.log_error(f"cleck_code_1 error: {data_addr}")
             return {}
 
         tpp_cmd_2_msg = []
@@ -206,7 +207,7 @@ def tpp_cmd_2(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_2_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_2.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_2 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_2 error: .{data} .{e}")
         return []
 
 
@@ -221,7 +222,7 @@ def tpp_cmd_3(data: list):  # 平台发送，设备接收
                 data_type = cleck_code_3.get(data_addr).get("encode")[1]
                 data_len = cleck_code_3.get(data_addr).get("encode")[0]
             else:
-                HSyslog.log_info(f"cleck_code_3 error: {data_addr}")
+                HSyslog.log_error(f"cleck_code_3 error: {data_addr}")
                 return {}
             info = {
                 "reserved": hex_to_info(data[0:4], Encode_type.BIN.value),
@@ -245,7 +246,7 @@ def tpp_cmd_3(data: list):  # 平台发送，设备接收
             HSyslog.log_info(f"tpp_cmd_3: {info}")
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_3 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_3 error: .{data} .{e}")
         return {}
 
 
@@ -262,7 +263,7 @@ def tpp_cmd_4(data: dict):  # 设备发送，平台接收
             data_type = cleck_code_3.get(data_addr).get("encode")[1]
             data_len = cleck_code_3.get(data_addr).get("encode")[0]
         else:
-            HSyslog.log_info(f"cleck_code_3 error: {data_addr}")
+            HSyslog.log_error(f"cleck_code_3 error: {data_addr}")
             return {}
         tpp_cmd_4_msg = []
         tpp_cmd_4_msg += info_to_hex(reserved, 4, Encode_type.BIN.value)
@@ -278,7 +279,7 @@ def tpp_cmd_4(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_4_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_4.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_4 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_4 error: .{data} .{e}")
         return []
 
 
@@ -298,7 +299,7 @@ def tpp_cmd_501(data: list):  # 平台发送，设备接收
 
                 data_list = data_list[data_len + 2:]
             else:
-                HSyslog.log_info(f"cleck_code_501 error: {data_addr}")
+                HSyslog.log_error(f"cleck_code_501 error: {data_addr}")
                 break
 
         info = {
@@ -312,7 +313,7 @@ def tpp_cmd_501(data: list):  # 平台发送，设备接收
             HSyslog.log_info(f"tpp_cmd_501: {info}")
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_501 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_501 error: .{data} .{e}")
         return {}
 
 
@@ -333,7 +334,7 @@ def tpp_cmd_502(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_502_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_502.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_502 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_502 error: .{data} .{e}")
         return []
 
 
@@ -371,7 +372,7 @@ def tpp_cmd_505(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_505 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_505 error: .{data} .{e}")
         return {}
 
 
@@ -394,7 +395,7 @@ def tpp_cmd_506(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_506_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_506.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_506 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_506 error: .{data} .{e}")
         return []
 
 
@@ -412,7 +413,7 @@ def tpp_cmd_507(data: list):  # 平台发送，设备接收
 
                 data_list = data_list[data_len + 2:]
             else:
-                HSyslog.log_info(f"cleck_code_507 error: {data_addr}")
+                HSyslog.log_error(f"cleck_code_507 error: {data_addr}")
                 break
 
         info = {
@@ -429,7 +430,7 @@ def tpp_cmd_507(data: list):  # 平台发送，设备接收
             HSyslog.log_info(f"tpp_cmd_507: {info}")
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_507 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_507 error: .{data} .{e}")
         return {}
 
 
@@ -459,7 +460,7 @@ def tpp_cmd_508(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_508_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_508.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_508 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_508 error: .{data} .{e}")
         return []
 
 
@@ -480,7 +481,7 @@ def tpp_cmd_511(data: list):  # 平台发送，设备接收
             HSyslog.log_info(f"tpp_cmd_511: {info}")
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_511 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_511 error: .{data} .{e}")
         return {}
 
 
@@ -504,7 +505,7 @@ def tpp_cmd_512(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_512_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_512.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_512 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_512 error: .{data} .{e}")
         return []
 
 
@@ -524,7 +525,7 @@ def tpp_cmd_513(data: list):  # 平台发送，设备接收
             HSyslog.log_info(f"tpp_cmd_513: {info}")
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_513 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_513 error: .{data} .{e}")
         return {}
 
 
@@ -552,7 +553,7 @@ def tpp_cmd_514(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_514_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_514.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_514 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_514 error: .{data} .{e}")
         return []
 
 
@@ -573,7 +574,7 @@ def tpp_cmd_5(data: list):  # 平台发送，设备接收
             data_type = cleck_code_5.get(data_addr).get("encode")[1]
             data_len = cleck_code_5.get(data_addr).get("encode")[0]
         else:
-            HSyslog.log_info(f"cleck_code_5 error: {data_addr}")
+            HSyslog.log_error(f"cleck_code_5 error: {data_addr}")
             return {}
         info = {
             "reserved": hex_to_info(data[0:4], Encode_type.BIN.value),
@@ -591,7 +592,7 @@ def tpp_cmd_5(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_5 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_5 error: .{data} .{e}")
         return {}
 
 
@@ -618,7 +619,7 @@ def tpp_cmd_6(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_6_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_6.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_6 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_6 error: .{data} .{e}")
         return []
 
 
@@ -649,7 +650,7 @@ def tpp_cmd_7(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_7 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_7 error: .{data} .{e}")
         return {}
 
 
@@ -674,7 +675,7 @@ def tpp_cmd_8(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_8_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_8.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_8 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_8 error: .{data} .{e}")
         return []
 
 
@@ -693,7 +694,7 @@ def tpp_cmd_11(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_11 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_11 error: .{data} .{e}")
         return {}
 
 
@@ -716,7 +717,7 @@ def tpp_cmd_12(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_12_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_12.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_12 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_12 error: .{data} .{e}")
         return []
 
 
@@ -733,7 +734,7 @@ def tpp_cmd_13(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_13 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_13 error: .{data} .{e}")
         return {}
 
 
@@ -758,7 +759,7 @@ def tpp_cmd_14(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_14_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_14.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_14 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_14 error: .{data} .{e}")
         return []
 
 
@@ -783,7 +784,7 @@ def tpp_cmd_15(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_15 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_15 error: .{data} .{e}")
         return {}
 
 
@@ -806,7 +807,7 @@ def tpp_cmd_16(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_16_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_16.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_16 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_16 error: .{data} .{e}")
         return []
 
 
@@ -830,7 +831,7 @@ def tpp_cmd_503(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_503 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_503 error: .{data} .{e}")
         return {}
 
 
@@ -849,7 +850,7 @@ def tpp_cmd_504(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_504_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_504.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_504 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_504 error: .{data} .{e}")
         return []
 
 
@@ -867,7 +868,7 @@ def tpp_cmd_17(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_17 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_17 error: .{data} .{e}")
         return {}
 
 
@@ -893,7 +894,7 @@ def tpp_cmd_18(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_18_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_18.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_18 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_18 error: .{data} .{e}")
         return []
 
 
@@ -912,7 +913,7 @@ def tpp_cmd_19(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_19 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_19 error: .{data} .{e}")
         return {}
 
 
@@ -933,7 +934,7 @@ def tpp_cmd_20(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_20_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_20.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_20 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_20 error: .{data} .{e}")
         return []
 
 
@@ -951,7 +952,7 @@ def tpp_cmd_101(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_101 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_101 error: .{data} .{e}")
         return {}
 
 
@@ -972,7 +973,7 @@ def tpp_cmd_102(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_102_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_102.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_102 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_102 error: .{data} .{e}")
         return []
 
 
@@ -994,7 +995,7 @@ def tpp_cmd_103(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_103 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_103 error: .{data} .{e}")
         return {}
 
 
@@ -1085,7 +1086,7 @@ def tpp_cmd_104(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_104_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_104.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_104 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_104 error: .{data} .{e}")
         return []
 
 
@@ -1103,7 +1104,7 @@ def tpp_cmd_105(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_105 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_105 error: .{data} .{e}")
         return {}
 
 
@@ -1158,7 +1159,7 @@ def tpp_cmd_106(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_106_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_106.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_106 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_106 error: .{data} .{e}")
         return {}
 
 
@@ -1177,7 +1178,7 @@ def tpp_cmd_113(data: list):  # 平台发送，设备接收
         tpp_resv_data.put([tpp_mqtt_cmd_enum.tpp_cmd_type_113.value, info])
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_113 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_113 error: .{data} .{e}")
         return {}
 
 
@@ -1196,7 +1197,7 @@ def tpp_cmd_114(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_114_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_114.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_114 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_114 error: .{data} .{e}")
         return []
 
 
@@ -1215,7 +1216,7 @@ def tpp_cmd_301(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_301 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_301 error: .{data} .{e}")
         return {}
 
 
@@ -1379,7 +1380,7 @@ def tpp_cmd_302(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_302_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_302.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_302 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_302 error: .{data} .{e}")
         return []
 
 
@@ -1399,7 +1400,7 @@ def tpp_cmd_303(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_303 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_303 error: .{data} .{e}")
         return {}
 
 
@@ -1468,7 +1469,7 @@ def tpp_cmd_304(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_304_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_304.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_304 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_304 error: .{data} .{e}")
         return []
 
 
@@ -1488,7 +1489,7 @@ def tpp_cmd_305(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_305 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_305 error: .{data} .{e}")
         return {}
 
 
@@ -1554,7 +1555,7 @@ def tpp_cmd_306(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_306_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_306.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_306 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_306 error: .{data} .{e}")
         return []
 
 
@@ -1574,7 +1575,7 @@ def tpp_cmd_307(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_307 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_307 error: .{data} .{e}")
         return {}
 
 
@@ -1604,7 +1605,7 @@ def tpp_cmd_308(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_308_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_308.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_308 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_308 error: .{data} .{e}")
         return []
 
 
@@ -1624,7 +1625,7 @@ def tpp_cmd_309(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_309 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_309 error: .{data} .{e}")
         return {}
 
 
@@ -1654,7 +1655,7 @@ def tpp_cmd_310(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_310_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_310.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_310 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_310 error: .{data} .{e}")
         return []
 
 
@@ -1674,7 +1675,7 @@ def tpp_cmd_311(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_311 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_311 error: .{data} .{e}")
         return {}
 
 
@@ -1724,7 +1725,7 @@ def tpp_cmd_312(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_312_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_312.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_312 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_312 error: .{data} .{e}")
         return []
 
 
@@ -1743,7 +1744,7 @@ def tpp_cmd_201(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_201 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_201 error: .{data} .{e}")
         return {}
 
 
@@ -1811,7 +1812,7 @@ def tpp_cmd_202(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_202_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_202.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_202 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_202 error: .{data} .{e}")
         return []
 
 
@@ -1830,7 +1831,7 @@ def tpp_cmd_205(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_205 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_205 error: .{data} .{e}")
         return {}
 
 
@@ -1898,7 +1899,7 @@ def tpp_cmd_206(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_206_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_202.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_206 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_206 error: .{data} .{e}")
         return []
 
 
@@ -1916,7 +1917,7 @@ def tpp_cmd_401(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_401 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_401 error: .{data} .{e}")
         return {}
 
 
@@ -2081,7 +2082,7 @@ def tpp_cmd_402(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_402_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_402.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_402 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_402 error: .{data} .{e}")
         return []
 
 
@@ -2101,7 +2102,7 @@ def tpp_cmd_23(data: list):  # 平台发送，设备接收
         tpp_resv_data.put([tpp_mqtt_cmd_enum.tpp_cmd_type_23.value, info])
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_23 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_23 error: .{data} .{e}")
         return {}
 
 
@@ -2124,7 +2125,7 @@ def tpp_cmd_24(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_24_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_24.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_24 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_24 error: .{data} .{e}")
         return []
 
 
@@ -2146,7 +2147,7 @@ def tpp_cmd_1303(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_1303 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_1303 error: .{data} .{e}")
         return {}
 
 
@@ -2163,7 +2164,7 @@ def tpp_cmd_1304(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_1304_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_1304.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_1304 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_1304 error: .{data} .{e}")
         return []
 
 
@@ -2186,7 +2187,7 @@ def tpp_cmd_1305(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_1305 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_1305 error: .{data} .{e}")
         return {}
 
 
@@ -2207,7 +2208,7 @@ def tpp_cmd_1306(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_1306_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_1306.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_1306 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_1306 error: .{data} .{e}")
         return []
 
 
@@ -2230,7 +2231,7 @@ def tpp_cmd_1307(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_1307 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_1307 error: .{data} .{e}")
         return {}
 
 
@@ -2251,7 +2252,7 @@ def tpp_cmd_1308(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_1308_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_1308.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_1308 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_1308 error: .{data} .{e}")
         return []
 
 
@@ -2280,7 +2281,7 @@ def tpp_cmd_1309(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_1309 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_1309 error: .{data} .{e}")
         return {}
 
 
@@ -2297,7 +2298,7 @@ def tpp_cmd_1310(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_1310_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_1310.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_1310 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_1310 error: .{data} .{e}")
         return []
 
 
@@ -2317,7 +2318,7 @@ def tpp_cmd_107(data: list):  # 平台发送，设备接收
         tpp_resv_data.put([tpp_mqtt_cmd_enum.tpp_cmd_type_107.value, info])
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_107 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_107 error: .{data} .{e}")
         return {}
 
 
@@ -2342,7 +2343,7 @@ def tpp_cmd_108(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_108_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_108.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_108 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_108 error: .{data} .{e}")
         return []
 
 
@@ -2361,7 +2362,7 @@ def tpp_cmd_117(data: list):  # 平台发送，设备接收
         tpp_resv_data.put([tpp_mqtt_cmd_enum.tpp_cmd_type_117.value, info])
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_117 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_117 error: .{data} .{e}")
         return {}
 
 
@@ -2384,7 +2385,7 @@ def tpp_cmd_118(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_118_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_118.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_118 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_118 error: .{data} .{e}")
         return []
 
 
@@ -2403,7 +2404,7 @@ def tpp_cmd_119(data: list):  # 平台发送，设备接收
         tpp_resv_data.put([tpp_mqtt_cmd_enum.tpp_cmd_type_119.value, info])
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_119 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_119 error: .{data} .{e}")
         return {}
 
 
@@ -2432,7 +2433,7 @@ def tpp_cmd_120(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_120_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_120.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_120 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_120 error: .{data} .{e}")
         return []
 
 
@@ -2451,7 +2452,7 @@ def tpp_cmd_407(data: list):  # 平台发送，设备接收
         tpp_resv_data.put([tpp_mqtt_cmd_enum.tpp_cmd_type_407.value, info])
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_407 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_407 error: .{data} .{e}")
         return {}
 
 
@@ -2472,7 +2473,7 @@ def tpp_cmd_408(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_408_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_408.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_408 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_408 error: .{data} .{e}")
         return []
 
 
@@ -2491,7 +2492,7 @@ def tpp_cmd_409(data: list):  # 平台发送，设备接收
         tpp_resv_data.put([tpp_mqtt_cmd_enum.tpp_cmd_type_409.value, info])
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_409 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_409 error: .{data} .{e}")
         return {}
 
 
@@ -2512,7 +2513,7 @@ def tpp_cmd_410(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_410_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_410.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_410 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_410 error: .{data} .{e}")
         return []
 
 
@@ -2532,7 +2533,7 @@ def tpp_cmd_1101(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_1101 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_1101 error: .{data} .{e}")
         return {}
 
 
@@ -2551,7 +2552,7 @@ def tpp_cmd_1102(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_1102_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_1102.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_1102 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_1102 error: .{data} .{e}")
         return []
 
 
@@ -2574,7 +2575,7 @@ def tpp_cmd_801(data: list):  # 平台发送，设备接收
         tpp_resv_data.put([tpp_mqtt_cmd_enum.tpp_cmd_type_801.value, info])
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_801 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_801 error: .{data} .{e}")
         return {}
 
 
@@ -2601,7 +2602,7 @@ def tpp_cmd_802(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_802_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_802.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_802 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_802 error: .{data} .{e}")
         return []
 
 
@@ -2621,7 +2622,7 @@ def tpp_cmd_509(data: list):  # 平台发送，设备接收
         tpp_resv_data.put([tpp_mqtt_cmd_enum.tpp_cmd_type_509.value, info])
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_509 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_509 error: .{data} .{e}")
         return {}
 
 
@@ -2642,7 +2643,7 @@ def tpp_cmd_510(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_510_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_510.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_510 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_510 error: .{data} .{e}")
         return []
 
 
@@ -2662,7 +2663,7 @@ def tpp_cmd_33(data: list):  # 平台发送，设备接收
         tpp_resv_data.put([tpp_mqtt_cmd_enum.tpp_cmd_type_33.value, info])
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_33 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_33 error: .{data} .{e}")
         return {}
 
 
@@ -2688,7 +2689,7 @@ def tpp_cmd_34(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_34_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_34.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_34 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_34 error: .{data} .{e}")
         return []
 
 
@@ -2708,7 +2709,7 @@ def tpp_cmd_35(data: list):  # 平台发送，设备接收
         tpp_resv_data.put([tpp_mqtt_cmd_enum.tpp_cmd_type_35.value, info])
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_35 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_35 error: .{data} .{e}")
         return {}
 
 
@@ -2729,7 +2730,7 @@ def tpp_cmd_36(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_36_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_36.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_36 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_36 error: .{data} .{e}")
         return []
 
 
@@ -2758,7 +2759,7 @@ def tpp_cmd_37(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_37 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_37 error: .{data} .{e}")
         return {}
 
 
@@ -2783,7 +2784,7 @@ def tpp_cmd_38(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_38_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_38.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_38 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_38 error: .{data} .{e}")
         return []
 
 
@@ -2801,7 +2802,7 @@ def tpp_cmd_331(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_331 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_331 error: .{data} .{e}")
         return {}
 
 
@@ -2822,7 +2823,7 @@ def tpp_cmd_332(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_332_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_332.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_332 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_332 error: .{data} .{e}")
         return []
 
 
@@ -2845,7 +2846,7 @@ def tpp_cmd_40(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_40_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_40.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_40 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_40 error: .{data} .{e}")
         return []
 
 
@@ -2872,7 +2873,7 @@ def tpp_cmd_41(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_41 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_41 error: .{data} .{e}")
         return {}
 
 
@@ -2897,7 +2898,7 @@ def tpp_cmd_42(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_42_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_42.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_42 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_42 error: .{data} .{e}")
         return []
 
 
@@ -2926,7 +2927,7 @@ def tpp_cmd_43(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_43 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_43 error: .{data} .{e}")
         return {}
 
 
@@ -2947,7 +2948,7 @@ def tpp_cmd_44(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_44_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_44.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_44 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_44 error: .{data} .{e}")
         return []
 
 
@@ -2965,7 +2966,7 @@ def tpp_cmd_45(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_45 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_45 error: .{data} .{e}")
         return {}
 
 
@@ -2991,7 +2992,7 @@ def tpp_cmd_80(data: dict):  # 设备发送，平台接收
 
         return pack(tpp_cmd_80_msg, tpp_mqtt_cmd_enum.tpp_cmd_type_80.value)
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_80 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_80 error: .{data} .{e}")
         return []
 
 
@@ -3010,7 +3011,7 @@ def tpp_cmd_81(data: list):  # 平台发送，设备接收
 
         return info
     except Exception as e:
-        HSyslog.log_info(f"tpp_cmd_81 error: .{data} .{e}")
+        HSyslog.log_error(f"tpp_cmd_81 error: .{data} .{e}")
         return {}
 
 
@@ -3153,6 +3154,8 @@ connect_status = False  # 连接状态
 hand_status = False  # 握手状态
 platform_host = "116.85.2.49"  # 平台IP
 platform_port = 1884  # 平台端口号
+# platform_host = "127.0.0.1"  # 平台IP
+# platform_port = 6000  # 平台端口号
 Heartbeat = 0
 data_path = "/opt/hhd/Platform.db"
 ota_path = "/opt/hhd/dtu20.tar.gz"
@@ -3619,7 +3622,7 @@ def pack(msg, cmd):
         protocol = Protocol_Decode(msg, cmd)
         return protocol.protocol_message()
     except Exception as e:
-        HSyslog.log_info(f"pack error: {msg} {cmd} {e}")
+        HSyslog.log_error(f"pack error: {msg} {cmd} {e}")
 
 
 class Protocol_Decode:
@@ -3740,15 +3743,11 @@ def info_to_version(info, info_len, info_mode):
             version_list.append('0')
     version_array = []
 
-    print(version_list)
-
     # 处理第一个部分，分高低字节
     first_part = int(version_list[0])
     high_byte = (first_part >> 8) & 0xFF  # 取高字节
     low_byte = first_part & 0xFF  # 取低字节
     version_array.extend([high_byte, low_byte])
-
-    print(version_array)
 
     # 处理剩余的部分，不分高低字节
     for part in version_list[1:]:
@@ -3855,13 +3854,13 @@ def info_to_hex(info, info_len, info_type, info_mode=INFO_MODEL):
             result = info_to_encrypt_version(info, info_len, info_mode)
 
         if result is None:
-            HSyslog.log_info(f"{info} --- {info_len} --- {info_type}")
+            HSyslog.log_error(f"{info} --- {info_len} --- {info_type}")
             return [0x00] * info_len
         else:
             # HSyslog.log_info(result)
             return result
     except Exception as e:
-        HSyslog.log_info(f"input_data: .{info} .{e}")
+        HSyslog.log_error(f"input_data: .{info} .{e}")
         return None
 
 
@@ -3880,7 +3879,7 @@ def unpack(msg):
         # protocol.Pprint()
         return protocol.protocol_message()
     except Exception as e:
-        HSyslog.log_info(f"unpack error: {msg} {e}")
+        HSyslog.log_error(f"unpack error: {msg} {e}")
 
 
 class Protocol_Encode:
@@ -3919,7 +3918,7 @@ class Protocol_Encode:
         if self.length_code == len(self.msg):
             return True
         else:
-            HSyslog.log_info(f"cleck_length_code error: {self.length_code} -- {len(self.msg)}")
+            HSyslog.log_error(f"cleck_length_code error: {self.length_code} -- {len(self.msg)}")
             return False
 
     def cleck_info_code(self):
@@ -3936,7 +3935,7 @@ class Protocol_Encode:
         if self.cmd_code in tpp_mqtt_cmd_type.keys():
             return True
         else:
-            HSyslog.log_info(f"cleck_cmd_code error: {self.cmd_code} -- {self.cmd_code}")
+            HSyslog.log_error(f"cleck_cmd_code error: {self.cmd_code} -- {self.cmd_code}")
             return False
 
     def cleck_check_code(self):
@@ -3949,7 +3948,7 @@ class Protocol_Encode:
         if self.check_code == check_code % 127:
             return True
         else:
-            HSyslog.log_info(f"cleck_check_code error: {self.check_code} -- {check_code % 127}")
+            HSyslog.log_error(f"cleck_check_code error: {self.check_code} -- {check_code % 127}")
             return True
 
     def cleck_func(self):
@@ -3957,7 +3956,7 @@ class Protocol_Encode:
             self.callback_func = tpp_mqtt_cmd_type.get(self.cmd_code).get("func")
             return True
         else:
-            HSyslog.log_info(f"cleck_func error")
+            HSyslog.log_error(f"cleck_func error")
             return False
 
     def protocol_message(self):
@@ -3986,7 +3985,7 @@ def ascii_list_to_info(hex_list, hex_mode):
         result_str += chr(byte)
         index += 1
 
-    return result_str
+    return result_str.rstrip()
 
 
 def bin_list_to_info(hex_list, hex_mode):
@@ -4251,6 +4250,9 @@ def datadb_init():
 
     conn.commit()
     conn.close()
+    db_delete = threading.Thread(target=delete_db)
+    db_delete.start()
+    HSyslog.log_info("db_delete")
 
 
 def save_DeviceInfo(data_id, data_type, data_str, data_int):
@@ -4483,33 +4485,64 @@ def get_DeviceOrder_de_id(device_session_id):
 def save_HistoryOrder(dict_info: dict):
     conn = sqlite3.connect(data_path)
     cur = conn.cursor()
-    cur.execute(
-        '''INSERT INTO HistoryOrder (gun_id, charge_id, device_session_id, cloud_session_id, confirm_is) 
-        VALUES (?, ?, ?, ?, ?)''',
-        (dict_info.get("gun_id"), dict_info.get("charge_id"), dict_info.get("device_session_id"), dict_info.get("cloud_session_id"), dict_info.get("confirm_is")))
+    if not get_HistoryOrder_pa_id(dict_info.get("charge_id")):
+        cur.execute(
+            '''INSERT INTO HistoryOrder (gun_id, charge_id, device_session_id, cloud_session_id, confirm_is) 
+            VALUES (?, ?, ?, ?, ?)''',
+            (dict_info.get("gun_id"), dict_info.get("charge_id"), dict_info.get("device_session_id"), dict_info.get("cloud_session_id"), dict_info.get("confirm_is")))
+    else:
+        cur.execute(
+            '''UPDATE HistoryOrder SET gun_id = ?, device_session_id = ?, cloud_session_id = ?, confirm_is = ? WHERE charge_id = ? ''',
+            (dict_info.get("gun_id"), dict_info.get("device_session_id"), dict_info.get("cloud_session_id"), dict_info.get("confirm_is"), dict_info.get("charge_id")))
     conn.commit()
     conn.close()
 
 
-def get_HistoryOrder():
+def get_HistoryOrder_pa_id(cloud_session_id):
     conn = sqlite3.connect(data_path)
     cur = conn.cursor()
-    order_list = []
-    cur.execute('SELECT * FROM HistoryOrder')
-    result = cur.fetchall()
+    cur.execute('SELECT * FROM HistoryOrder WHERE charge_id = ?', (cloud_session_id,))
+    result = cur.fetchone()
     conn.commit()
     conn.close()
-    for order in result:
-        if order[5] == 0:
-            info = {
-                "gun_id": order[1],
-                "charge_id": order[2],
-                "device_session_id": order[3],
-                "cloud_session_id": order[4],
-                "confirm_is": order[5],
-            }
-            order_list.append(info)
-    return order_list
+    if result is None:
+        return False
+    else:
+        return True
+
+
+def get_HistoryOrder(cloud_session_id=None):
+    conn = sqlite3.connect(data_path)
+    cur = conn.cursor()
+    if cloud_session_id is None:
+        order_list = []
+        cur.execute('SELECT * FROM HistoryOrder')
+        result = cur.fetchall()
+        conn.commit()
+        conn.close()
+        for order in result:
+            if order[5] == 0:
+                info = {
+                    "gun_id": order[1],
+                    "charge_id": order[2],
+                    "device_session_id": order[3],
+                    "cloud_session_id": order[4],
+                    "confirm_is": order[5],
+                }
+                order_list.append(info)
+        return order_list
+    else:
+        cur.execute('SELECT * FROM HistoryOrder WHERE cloud_session_id = ?', (cloud_session_id,))
+        result = cur.fetchone()
+        conn.commit()
+        conn.close()
+        if result is None:
+            return False
+        else:
+            if result[5] == 1:
+                return True
+            else:
+                return False
 
 
 def set_HistoryOrder(dict_info: dict):
@@ -4540,6 +4573,34 @@ def set_HistoryOrder(dict_info: dict):
             conn.commit()
             conn.close()
             return False
+
+
+def delete_db():
+    delete_time = get_DeviceInfo("delete_time")
+    if delete_time is None or delete_time == 0:
+        save_DeviceInfo("delete_time", 2, "", int(time.time()))
+    elif int(time.time()) - delete_time >= 86400 * 15:
+        delete_DeviceOrder()
+    else:
+        time.sleep(86400)
+
+
+def delete_DeviceOrder():
+    conn = sqlite3.connect(data_path)
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM DeviceOrder')
+    result = cur.fetchall()
+    for info in result:
+        if get_HistoryOrder(info[-1]):
+            if int(time.time()) - info[6] >= 86400 * 90:
+                cur.execute("DELETE FROM HistoryOrder WHERE cloud_session_id=?", (info[-1],))
+                cur.execute("DELETE FROM DeviceOrder WHERE charge_stop_time=?", (info[6],))
+        else:
+            pass
+    conn.commit()
+    conn.close()
+    return result
+
 
 
 """

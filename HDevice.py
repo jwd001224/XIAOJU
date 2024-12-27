@@ -51,7 +51,7 @@ def hhd_init(host="127.0.0.1", port=1883):
                 HStategrid.Gun_list.append(instance)
             HHhdlist.Device_ready = True
     except Exception as e:
-        HSyslog.log_info(f"hhd_init error. {e}")
+        HSyslog.log_error(f"hhd_init error. {e}")
 
 
 '''################################################### 数据接收发送队列初始化 ####################################################'''
@@ -81,12 +81,12 @@ class HMqttClient:
                 isReady = True
                 HSyslog.log_info(f"Connected to Device MQTT broker at {self.broker_address}:{self.broker_port}")
             except Exception as e:
-                HSyslog.log_info(f"Failed to Device Connect to broker: {e}")
+                HSyslog.log_error(f"Failed to Device Connect to broker: {e}")
 
             if isReady:
                 self.start_send_thread()
         except socket.error as e:
-            HSyslog.log_info(f"connect_device: {e}")
+            HSyslog.log_error(f"connect_device: {e}")
             time.sleep(5)
 
     def start_send_thread(self):
@@ -119,7 +119,7 @@ class HMqttClient:
                 HSyslog.log_info("Attempting to device reconnect...")
                 self.reconnect()
         except Exception as e:
-            HSyslog.log_info(f"Device MQTT.close: {e}")
+            HSyslog.log_error(f"Device MQTT.close: {e}")
 
     def reconnect(self):
         """重新连接到MQTT服务器"""
@@ -127,7 +127,7 @@ class HMqttClient:
             self.client.reconnect()
             HSyslog.log_info("Reconnected to Device MQTT broker")
         except Exception as e:
-            HSyslog.log_info(f"Device Reconnection failed: {e}")
+            HSyslog.log_error(f"Device Reconnection failed: {e}")
         time.sleep(10)
 
     def subscribe(self):
@@ -138,7 +138,6 @@ class HMqttClient:
                 HSyslog.log_info(f"{topic}")
 
     def _on_message(self, client, userdata, msg):
-
         """接收消息时的回调函数"""
         try:
             receive_msg = msg.payload.decode('utf-8', 'ignore')
@@ -147,10 +146,11 @@ class HMqttClient:
                 if topic in app_func_dict.keys():
                     receive_dict = json.loads(receive_msg)
                     app_func_dict[topic]["func"](receive_dict.get("body", {}))
+                    # HSyslog.log_info(f"Received Device message: '{receive_msg}' on topic {topic}")
                     if topic != HHhdlist.topic_hqc_main_telemetry_notify_info:
                         HSyslog.log_info(f"Received Device message: '{receive_msg}' on topic {topic}")
         except Exception as e:
-            HSyslog.log_info(f"device _receive_messages: '{msg}' {e}")
+            HSyslog.log_error(f"device _receive_messages: '{msg}' {e}")
 
     def _send_messages(self):
         """向主题发送消息"""
@@ -175,7 +175,7 @@ class HMqttClient:
                                 HSyslog.log_info(f"Failed to send device message, result code: {result.rc}")
                             time.sleep(0.02)
                     except Exception as e:
-                        HSyslog.log_info(f"Send_to_Device: {e}")
+                        HSyslog.log_error(f"Send_to_Device: {e}")
             else:
                 if not HHhdlist.hd_send_data:
                     time.sleep(0.1)
@@ -260,7 +260,7 @@ def __platform_device_data():
                     topic = msg[0]
                     app_func_dict[topic]["func"](msg[1])
             except Exception as e:
-                HSyslog.log_info(f"__platform_device_data Faild: {msg}, {e}")
+                HSyslog.log_error(f"__platform_device_data Faild: {msg}, {e}")
 
 
 def do_platform_device_data():
@@ -288,7 +288,7 @@ def _hqc_sys_network_state(msg_body_dict: dict):  # 网络状态消息
             topic = HHhdlist.topic_hqc_sys_network_state
             app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_network_state error: {e}")
+        HSyslog.log_error(f"_hqc_sys_network_state error: {e}")
 
 
 def _hqc_sys_time_sync(msg_body_dict: dict):  # 时间同步消息
@@ -317,7 +317,7 @@ def _hqc_sys_time_sync(msg_body_dict: dict):  # 时间同步消息
         topic = HHhdlist.topic_hqc_sys_time_sync
         app_publish(topic, time_info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_time_sync error: {e}")
+        HSyslog.log_error(f"_hqc_sys_time_sync error: {e}")
 
 
 def _hqc_main_telemetry_notify_fault(msg_body_dict: dict):  # 设备故障消息
@@ -370,9 +370,6 @@ def _hqc_main_telemetry_notify_fault(msg_body_dict: dict):  # 设备故障消息
         else:
             HSyslog.log_info("故障告警数量为零")
 
-        HSyslog.log_info(f"fault_code: {fault_code}")
-        HSyslog.log_info(f"warn_code: {warn_code}")
-
         for gun_info in HStategrid.Gun_list:
             HStategrid.Gun_list[gun_info.gun_id].set_gun_fault(fault_code.get(gun_info.gun_id))
             HStategrid.Gun_list[gun_info.gun_id].set_gun_warn(warn_code.get(gun_info.gun_id))
@@ -380,7 +377,7 @@ def _hqc_main_telemetry_notify_fault(msg_body_dict: dict):  # 设备故障消息
         HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_118.value, {}])
         HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_120.value, {}])
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_telemetry_notify_fault error: {e}")
+        HSyslog.log_error(f"_hqc_main_telemetry_notify_fault error: {e}")
 
 
 def _hqc_cloud_event_notify_fault(msg_body_dict: dict):  # 设备故障查询消息
@@ -391,7 +388,7 @@ def _hqc_cloud_event_notify_fault(msg_body_dict: dict):  # 设备故障查询消
         topic = HHhdlist.topic_hqc_cloud_event_notify_fault
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_fault error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_fault error: {e}")
 
 
 def _hqc_main_telemetry_notify_info(msg_body_dict: dict):  # 遥测遥信消息
@@ -498,7 +495,7 @@ def _hqc_main_telemetry_notify_info(msg_body_dict: dict):  # 遥测遥信消息
                     HStategrid.Gun_list[gun_id].set_gun_status(HStategrid.Gun_Status.Idle.value)
                     HStategrid.Gun_list[gun_id].set_gun_connect_status(HStategrid.Gun_Connect_Status.Not_Connect.value)
                     HStategrid.Gun_list[gun_id].set_gun_charge_gun_id([gun_id])
-                    HStategrid.Gun_list[gun_id] = HStategrid.Gun_info(gun_id)
+                    # HStategrid.Gun_list[gun_id] = HStategrid.Gun_info(gun_id)
                     HStategrid.Gun_list[gun_id].set_gun_car_connect_status(0)
                     info = {
                         "gun_id": gun_id,
@@ -508,7 +505,7 @@ def _hqc_main_telemetry_notify_info(msg_body_dict: dict):  # 遥测遥信消息
                     }
                     HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_108.value, info])
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_telemetry_notify_info error: {e}")
+        HSyslog.log_error(f"_hqc_main_telemetry_notify_info error: {e}")
 
     # HSyslog.log_info(f"chargeSys: {HHhdlist.chargeSys}")
     # HSyslog.log_info(f"cabinet: {HHhdlist.cabinet}")
@@ -529,7 +526,7 @@ def _hqc_cloud_event_notify_info(msg_body_dict: dict):  # 遥测遥信查询消�
         topic = HHhdlist.topic_hqc_cloud_event_notify_info
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_info error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_info error: {e}")
 
 
 def _hqc_main_event_notify_request_charge(msg_body_dict: dict):  # 充电请求消息
@@ -550,7 +547,7 @@ def _hqc_main_event_notify_request_charge(msg_body_dict: dict):  # 充电请求�
         }
         _hqc_main_event_reply_request_charge(info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_request_charge error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_request_charge error: {e}")
 
 
 def _hqc_main_event_reply_request_charge(msg_body_dict: dict):  # 充电请求应答消息
@@ -579,7 +576,7 @@ def _hqc_main_event_reply_request_charge(msg_body_dict: dict):  # 充电请求�
         HStategrid.Gun_list[gun_id].set_gun_charge({"failure_reason": info.get("failure_reason")})
         HStategrid.Gun_list[gun_id].set_gun_charge({"delay_time": info.get("temp_strategy").get("delay_time")})
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_request_charge error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_request_charge error: {e}")
 
 
 def _hqc_main_event_notify_control_charge(msg_body_dict: dict):  # 充电控制消息
@@ -757,7 +754,7 @@ def _hqc_main_event_notify_control_charge(msg_body_dict: dict):  # 充电控制�
         else:
             HSyslog.log_info(f"_hqc_main_event_notify_control_charge' control_charge error: {info}")
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_control_charge error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_control_charge error: {e}")
 
 
 def _hqc_main_event_reply_control_charge(msg_body_dict: dict):  # 充电控制应答消息
@@ -769,7 +766,7 @@ def _hqc_main_event_reply_control_charge(msg_body_dict: dict):  # 充电控制�
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_control_charge error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_control_charge error: {e}")
 
 
 def _hqc_ui_event_notify_auth_gun(msg_body_dict: dict):  # 鉴权绑定消息
@@ -784,7 +781,7 @@ def _hqc_ui_event_notify_auth_gun(msg_body_dict: dict):  # 鉴权绑定消息
         topic = HHhdlist.topic_hqc_ui_event_notify_auth_gun
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_ui_event_notify_auth_gun error: {e}")
+        HSyslog.log_error(f"_hqc_ui_event_notify_auth_gun error: {e}")
 
 
 def _hqc_main_event_notify_check_vin(msg_body_dict: dict):  # 车辆VIN鉴权消息
@@ -824,10 +821,16 @@ def _hqc_main_event_notify_check_vin(msg_body_dict: dict):  # 车辆VIN鉴权消
                 "gun_id": gun_id,
             }
             HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_40.value, auth_data])
-        else:
+        elif start_source == 0x0B:
+            info = {
+                "gun_id": gun_id,
+                "result": 1,
+                "reason": 0x04,
+            }
+            _hqc_main_event_reply_check_vin(info)
             pass
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_check_vin error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_check_vin error: {e}")
 
 
 def _hqc_main_event_reply_check_vin(msg_body_dict: dict):  # 车辆VIN鉴权应答消息
@@ -909,10 +912,10 @@ def _hqc_main_event_reply_check_vin(msg_body_dict: dict):  # 车辆VIN鉴权应�
                 _hqc_cloud_event_notify_update_charge_order_id(update_charge_id)
                 HStategrid.Gun_list[gun].set_gun_charge({"cloud_session_id": HStategrid.Gun_list[gun_id].get_gun_charge("charge_id")})
 
-        for gun_info in HStategrid.Gun_list:
-            HSyslog.log_info(f"{gun_info.gun_id}: {gun_info.get_gun_charge()}")
+        # for gun_info in HStategrid.Gun_list:
+        #     HSyslog.log_info(f"{gun_info.gun_id}: {gun_info.get_gun_charge()}")
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_check_vin error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_check_vin error: {e}")
 
 
 def _hqc_main_event_notify_charge_record(msg_body_dict: dict):  # 充电记录消息
@@ -922,11 +925,11 @@ def _hqc_main_event_notify_charge_record(msg_body_dict: dict):  # 充电记录�
     try:
         if cloud_session_id == HStategrid.Gun_list[gun_id].get_gun_charge("cloud_session_id") and HStategrid.Gun_list[gun_id].get_gun_charge("cloud_session_id") is not None:
             HStategrid.Gun_list[gun_id].set_gun_status(HStategrid.Gun_Status.Stopping.value)
-
+            charge_stop_reason = HHhdlist.get_stop_reason(msg_body_dict.get("stop_reason"))
             info = {
                 "gun_id": gun_id,
                 "cmd_addr": HStategrid.Gun_Connect_Status.Stop_Charge.value,
-                "addr_data": "0000",
+                "addr_data": charge_stop_reason,
                 "charge_id": cloud_session_id,
             }
             HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_108.value, info])
@@ -938,6 +941,11 @@ def _hqc_main_event_notify_charge_record(msg_body_dict: dict):  # 充电记录�
             HStategrid.Gun_list[gun_id].set_gun_charge_reserve()
             HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_312.value, info])
             HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_202.value, info])
+            info = {
+                "gun_id": gun_id,
+                "cloud_session_id": cloud_session_id,
+            }
+            _hqc_main_event_notify_charge_account(info)
         else:
             info = {
                 "gun_id": gun_id,
@@ -947,7 +955,7 @@ def _hqc_main_event_notify_charge_record(msg_body_dict: dict):  # 充电记录�
             }
             HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_main_event_reply_charge_record, info])
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_charge_record error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_charge_record error: {e}")
 
 
 def _hqc_main_event_reply_charge_record(msg_body_dict: dict):  # 充电记录应答消息
@@ -961,7 +969,7 @@ def _hqc_main_event_reply_charge_record(msg_body_dict: dict):  # 充电记录应
         topic = HHhdlist.topic_hqc_main_event_reply_charge_record
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_charge_record error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_charge_record error: {e}")
 
 
 def _hqc_main_event_notify_charge_cost(msg_body_dict: dict):  # 充电费用消息
@@ -991,10 +999,10 @@ def _hqc_main_event_notify_charge_cost(msg_body_dict: dict):  # 充电费用消�
 
             HStategrid.Gun_list[gun_id].gun_charge_cost = True
 
-        for gun_info in HStategrid.Gun_list:
-            HSyslog.log_info(f"{gun_info.gun_id}: {gun_info.get_gun_charge()}")
+        # for gun_info in HStategrid.Gun_list:
+        #     HSyslog.log_info(f"{gun_info.gun_id}: {gun_info.get_gun_charge()}")
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_charge_cost error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_charge_cost error: {e}")
 
 
 def _hqc_main_event_notify_charge_elec(msg_body_dict: dict):  # 充电电量冻结消息
@@ -1006,22 +1014,27 @@ def _hqc_main_event_notify_charge_elec(msg_body_dict: dict):  # 充电电量冻�
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_charge_elec error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_charge_elec error: {e}")
 
 
 def _hqc_main_event_notify_charge_account(msg_body_dict: dict):  # 充电结算消息
     gun_id = msg_body_dict.get('gun_id', -1)  # int
     cloud_session_id = msg_body_dict.get('cloud_session_id', '')  # string
-    user_id = msg_body_dict.get('user_id', '')  # string
-    balance = msg_body_dict.get('balance', -1)  # int
-    energy = msg_body_dict.get('energy', -1)  # int
-    electric_cost = msg_body_dict.get('electric_cost', -1)  # int
-    service_cost = msg_body_dict.get('service_cost', -1)  # int
-    total_cost = msg_body_dict.get('total_cost', -1)  # int
     try:
-        pass
+        info = {
+            "gun_id": gun_id,
+            "cloud_session_id": cloud_session_id,
+            "user_id": HStategrid.Gun_list[gun_id].get_gun_charge_order("user_id"),
+            "balance": 0,
+            "energy": HStategrid.Gun_list[gun_id].get_gun_charge_order("total_energy"),
+            "electric_cost": HStategrid.Gun_list[gun_id].get_gun_charge_order("total_electric_cost"),
+            "service_cost": HStategrid.Gun_list[gun_id].get_gun_charge_order("total_service_cost"),
+            "total_cost": HStategrid.Gun_list[gun_id].get_gun_charge_order("total_cost"),
+        }
+        topic = HHhdlist.topic_hqc_cloud_event_notify_recharge
+        app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_charge_account error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_charge_account error: {e}")
 
 
 def _hqc_cloud_event_notify_recharge(msg_body_dict: dict):  # 账户充值消息
@@ -1037,7 +1050,7 @@ def _hqc_cloud_event_notify_recharge(msg_body_dict: dict):  # 账户充值消息
         topic = HHhdlist.topic_hqc_cloud_event_notify_recharge
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_recharge error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_recharge error: {e}")
 
 
 def _hqc_cloud_event_reply_recharge(msg_body_dict: dict):  # 账户充值应答消息
@@ -1049,7 +1062,7 @@ def _hqc_cloud_event_reply_recharge(msg_body_dict: dict):  # 账户充值应答�
             "reason": reason
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_recharge error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_recharge error: {e}")
 
 
 def _hqc_cloud_event_notify_balance_query(msg_body_dict: dict):  # 账户余额查询消息
@@ -1066,7 +1079,7 @@ def _hqc_cloud_event_notify_balance_query(msg_body_dict: dict):  # 账户余额�
         }
         HStategrid.Gun_list[gun_id].set_gun_charge({"total_cost": msg_body_dict.get('total_cost', -1)})
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_balance_query error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_balance_query error: {e}")
 
 
 def _hqc_cloud_event_reply_balance_query(msg_body_dict: dict):  # 账户余额查询结果消息
@@ -1082,7 +1095,7 @@ def _hqc_cloud_event_reply_balance_query(msg_body_dict: dict):  # 账户余额�
         topic = HHhdlist.topic_hqc_cloud_event_reply_balance_query
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_balance_query error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_balance_query error: {e}")
 
 
 def _hqc_cloud_event_notify_request_rate(msg_body_dict: dict):  # 充电系统费率请求消息
@@ -1106,7 +1119,7 @@ def _hqc_cloud_event_notify_request_rate(msg_body_dict: dict):  # 充电系统�
         _hqc_main_event_notify_update_rate(info)
         _hqc_cloud_event_reply_request_rate({})
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_request_rate error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_request_rate error: {e}")
 
 
 def _hqc_cloud_event_reply_request_rate(msg_body_dict: dict):  # 充电系统费率请求应答消息
@@ -1117,7 +1130,7 @@ def _hqc_cloud_event_reply_request_rate(msg_body_dict: dict):  # 充电系统费
         topic = HHhdlist.topic_hqc_cloud_event_reply_request_rate
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_request_rate error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_request_rate error: {e}")
 
 
 def _hqc_cloud_event_notify_query_rate(msg_body_dict: dict):  # 充电系统费率查询消息
@@ -1126,7 +1139,7 @@ def _hqc_cloud_event_notify_query_rate(msg_body_dict: dict):  # 充电系统费�
         topic = HHhdlist.topic_hqc_cloud_event_notify_query_rate
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_query_rate error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_query_rate error: {e}")
 
 
 def _hqc_cloud_event_reply_query_rate(msg_body_dict: dict):  # 充电系统费率查询结果消息
@@ -1142,7 +1155,7 @@ def _hqc_cloud_event_reply_query_rate(msg_body_dict: dict):  # 充电系统费�
                 "fee_id": ""
             }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_query_rate error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_query_rate error: {e}")
 
 
 def _hqc_cloud_event_notify_request_gunrate(msg_body_dict: dict):  # 充电枪费率请求消息
@@ -1162,7 +1175,7 @@ def _hqc_cloud_event_notify_request_gunrate(msg_body_dict: dict):  # 充电枪�
             }
         _hqc_cloud_event_reply_request_gunrate({"gun_id": gun_id})
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_request_gunrate error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_request_gunrate error: {e}")
 
 
 def _hqc_cloud_event_reply_request_gunrate(msg_body_dict: dict):  # 充电枪费率请求应答消息
@@ -1175,7 +1188,7 @@ def _hqc_cloud_event_reply_request_gunrate(msg_body_dict: dict):  # 充电枪费
         topic = HHhdlist.topic_hqc_cloud_event_reply_request_gunrate
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_request_gunrate error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_request_gunrate error: {e}")
 
 
 def _hqc_cloud_event_notify_query_gunrate(msg_body_dict: dict):  # 充电枪费率查询消息
@@ -1187,7 +1200,7 @@ def _hqc_cloud_event_notify_query_gunrate(msg_body_dict: dict):  # 充电枪费�
         topic = HHhdlist.topic_hqc_cloud_event_notify_query_gunrate
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_query_gunrate error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_query_gunrate error: {e}")
 
 
 def _hqc_cloud_event_reply_query_gunrate(msg_body_dict: dict):  # 充电枪费率查询结果消息
@@ -1206,7 +1219,7 @@ def _hqc_cloud_event_reply_query_gunrate(msg_body_dict: dict):  # 充电枪费�
                 "fee_id": ""
             }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_query_gunrate error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_query_gunrate error: {e}")
 
 
 def _hqc_cloud_event_notify_request_startup(msg_body_dict: dict):  # 充电启动策略请求消息
@@ -1223,7 +1236,7 @@ def _hqc_cloud_event_notify_request_startup(msg_body_dict: dict):  # 充电启�
             }
         _hqc_cloud_event_reply_request_gunrate({})
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_request_startup error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_request_startup error: {e}")
 
 
 def _hqc_cloud_event_reply_request_startup(msg_body_dict: dict):  # 充电启动策略请求应答消息
@@ -1234,7 +1247,7 @@ def _hqc_cloud_event_reply_request_startup(msg_body_dict: dict):  # 充电启动
         topic = HHhdlist.topic_hqc_cloud_event_reply_request_startup
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_request_startup error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_request_startup error: {e}")
 
 
 def _hqc_cloud_event_notify_query_startup(msg_body_dict: dict):  # 充电启动策略查询消息
@@ -1243,7 +1256,7 @@ def _hqc_cloud_event_notify_query_startup(msg_body_dict: dict):  # 充电启动�
         topic = HHhdlist.topic_hqc_cloud_event_notify_query_startup
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_query_startup error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_query_startup error: {e}")
 
 
 def _hqc_cloud_event_reply_query_startup(msg_body_dict: dict):  # 充电启动策略查询结果消息
@@ -1259,7 +1272,7 @@ def _hqc_cloud_event_reply_query_startup(msg_body_dict: dict):  # 充电启动�
                 "startup_id": ""
             }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_query_startup error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_query_startup error: {e}")
 
 
 def _hqc_cloud_event_notify_request_dispatch(msg_body_dict: dict):  # 功率分配策略请求消息
@@ -1276,7 +1289,7 @@ def _hqc_cloud_event_notify_request_dispatch(msg_body_dict: dict):  # 功率分�
             }
         _hqc_cloud_event_reply_request_dispatch({})
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_request_dispatch error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_request_dispatch error: {e}")
 
 
 def _hqc_cloud_event_reply_request_dispatch(msg_body_dict: dict):  # 功率分配策略请求应答消息
@@ -1287,7 +1300,7 @@ def _hqc_cloud_event_reply_request_dispatch(msg_body_dict: dict):  # 功率分�
         topic = HHhdlist.topic_hqc_cloud_event_reply_request_dispatch
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_request_dispatch error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_request_dispatch error: {e}")
 
 
 def _hqc_cloud_event_notify_query_dispatch(msg_body_dict: dict):  # 功率分配策略查询消息
@@ -1296,7 +1309,7 @@ def _hqc_cloud_event_notify_query_dispatch(msg_body_dict: dict):  # 功率分配
         topic = HHhdlist.topic_hqc_cloud_event_notify_query_dispatch
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_query_dispatch error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_query_dispatch error: {e}")
 
 
 def _hqc_cloud_event_reply_query_dispatch(msg_body_dict: dict):  # 功率分配策略查询结果消息
@@ -1312,7 +1325,7 @@ def _hqc_cloud_event_reply_query_dispatch(msg_body_dict: dict):  # 功率分配�
                 "dispatch_id": ""
             }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_query_dispatch error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_query_dispatch error: {e}")
 
 
 def _hqc_cloud_event_notify_request_offlinelist(msg_body_dict: dict):  # 离线名单版本请求消息
@@ -1329,7 +1342,7 @@ def _hqc_cloud_event_notify_request_offlinelist(msg_body_dict: dict):  # 离线�
             }
         _hqc_cloud_event_reply_request_offlinelist({})
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_request_offlinelist error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_request_offlinelist error: {e}")
 
 
 def _hqc_cloud_event_reply_request_offlinelist(msg_body_dict: dict):  # 离线名单版本应答消息
@@ -1340,7 +1353,7 @@ def _hqc_cloud_event_reply_request_offlinelist(msg_body_dict: dict):  # 离线�
         topic = HHhdlist.topic_hqc_cloud_event_reply_request_offlinelist
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_request_offlinelist error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_request_offlinelist error: {e}")
 
 
 def _hqc_main_event_notify_charge_session(msg_body_dict: dict):  # 充电会话消息
@@ -1426,10 +1439,10 @@ def _hqc_main_event_notify_charge_session(msg_body_dict: dict):  # 充电会话�
         }
         _hqc_main_event_reply_charge_session(reply_charge_session_info)
 
-        for gun_info in HStategrid.Gun_list:
-            HSyslog.log_info(f"{gun_info.gun_id}: {gun_info.get_gun_charge()}")
+        # for gun_info in HStategrid.Gun_list:
+        #     HSyslog.log_info(f"{gun_info.gun_id}: {gun_info.get_gun_charge()}")
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_request_offlinelist error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_request_offlinelist error: {e}")
 
 
 def _hqc_main_event_reply_charge_session(msg_body_dict: dict):  # 充电会话应答消息
@@ -1440,7 +1453,7 @@ def _hqc_main_event_reply_charge_session(msg_body_dict: dict):  # 充电会话�
         topic = HHhdlist.topic_hqc_main_event_reply_charge_session
         app_publish(topic, msg_body)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_charge_session error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_charge_session error: {e}")
 
 
 def _hqc_main_event_notify_update_param(msg_body_dict: dict):  # 设置参数消息
@@ -1631,7 +1644,7 @@ def _hqc_main_event_notify_update_param(msg_body_dict: dict):  # 设置参数消
                 app_publish(topic, param_dict)
                 HHhdlist.write_param_is = False
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_update_param error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_update_param error: {e}")
 
 
 def _hqc_main_event_reply_update_param(msg_body_dict: dict):  # 设置参数应答消息
@@ -1644,7 +1657,7 @@ def _hqc_main_event_reply_update_param(msg_body_dict: dict):  # 设置参数应�
     try:
         HHhdlist.write_param_is = True
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_update_param error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_update_param error: {e}")
 
 
 def _hqc_main_event_notify_update_qrcode(msg_body_dict: dict):  # 二维码更新消息
@@ -1675,7 +1688,7 @@ def _hqc_main_event_notify_update_qrcode(msg_body_dict: dict):  # 二维码更�
         else:
             HSyslog.log_info(f"gun_id != qrcode error: {gun_id}--{qrcode}")
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_update_qrcode error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_update_qrcode error: {e}")
 
 
 def _hqc_main_event_reply_update_qrcode(msg_body_dict: dict):  # 二维码更新应答消息
@@ -1690,7 +1703,7 @@ def _hqc_main_event_reply_update_qrcode(msg_body_dict: dict):  # 二维码更新
             "reason": reason
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_update_qrcode error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_update_qrcode error: {e}")
 
 
 def _hqc_main_event_notify_reserve_count_down(msg_body_dict: dict):  # 预约延时启动倒计时消息
@@ -1706,7 +1719,7 @@ def _hqc_main_event_notify_reserve_count_down(msg_body_dict: dict):  # 预约延
         topic = HHhdlist.topic_hqc_main_event_notify_reserve_count_down
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_reserve_count_down error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_reserve_count_down error: {e}")
 
 
 def _hqc_cloud_event_notify_m1_secret(msg_body_dict: dict):  # M1卡密钥更新消息
@@ -1718,7 +1731,7 @@ def _hqc_cloud_event_notify_m1_secret(msg_body_dict: dict):  # M1卡密钥更新
         topic = HHhdlist.topic_hqc_cloud_event_notify_m1_secret
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_m1_secret error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_m1_secret error: {e}")
 
 
 def _hqc_cloud_event_reply_m1_secret(msg_body_dict: dict):  # M1卡密钥更新结果消息
@@ -1728,7 +1741,7 @@ def _hqc_cloud_event_reply_m1_secret(msg_body_dict: dict):  # M1卡密钥更新�
             "result": result,
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_m1_secret error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_m1_secret error: {e}")
 
 
 def _hqc_cloud_event_notify_pos_pre_transaction(msg_body_dict: dict):  # POS机预交易信息消息
@@ -1746,7 +1759,7 @@ def _hqc_cloud_event_notify_pos_pre_transaction(msg_body_dict: dict):  # POS机�
         topic = HHhdlist.topic_hqc_cloud_event_notify_pos_pre_transaction
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_pos_pre_transaction error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_pos_pre_transaction error: {e}")
 
 
 def _hqc_cloud_event_notify_pos_charge_cost(msg_body_dict: dict):  # POS机扣费消息
@@ -1762,7 +1775,7 @@ def _hqc_cloud_event_notify_pos_charge_cost(msg_body_dict: dict):  # POS机扣�
             "pos_transaction_data": pos_transaction_data,
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_pos_charge_cost error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_pos_charge_cost error: {e}")
 
 
 def _hqc_cloud_event_reply_pos_charge_cost(msg_body_dict: dict):  # POS机扣费结果消息
@@ -1778,7 +1791,7 @@ def _hqc_cloud_event_reply_pos_charge_cost(msg_body_dict: dict):  # POS机扣费
         topic = HHhdlist.topic_hqc_cloud_event_reply_pos_charge_cost
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_pos_charge_cost error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_pos_charge_cost error: {e}")
 
 
 def _hqc_cloud_event_notify_update_charge_order_id(msg_body_dict: dict):  # 充电订单ID更新消息
@@ -1794,7 +1807,7 @@ def _hqc_cloud_event_notify_update_charge_order_id(msg_body_dict: dict):  # 充�
         topic = HHhdlist.topic_hqc_cloud_event_notify_update_charge_order_id
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_notify_update_charge_order_id error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_notify_update_charge_order_id error: {e}")
 
 
 def _hqc_cloud_event_reply_update_charge_order_id(msg_body_dict: dict):  # 充电订单ID更新结果消息
@@ -1808,7 +1821,7 @@ def _hqc_cloud_event_reply_update_charge_order_id(msg_body_dict: dict):  # 充�
             "result": result,
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_cloud_event_reply_update_charge_order_id error: {e}")
+        HSyslog.log_error(f"_hqc_cloud_event_reply_update_charge_order_id error: {e}")
 
 
 def _hqc_main_event_notify_update_rate(msg_body_dict: dict):  # 充电系统费率同步消息
@@ -1858,7 +1871,7 @@ def _hqc_main_event_notify_update_rate(msg_body_dict: dict):  # 充电系统费�
         else:
             pass
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_update_rate error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_update_rate error: {e}")
 
 
 def _hqc_main_event_reply_update_rate(msg_body_dict: dict):  # 充电系统费率同步应答消息
@@ -1879,7 +1892,7 @@ def _hqc_main_event_reply_update_rate(msg_body_dict: dict):  # 充电系统费�
         # else:
         #     pass
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_update_rate error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_update_rate error: {e}")
 
 
 def _hqc_main_event_notify_update_gunrate(msg_body_dict: dict):  # 充电枪费率同步消息
@@ -1930,7 +1943,7 @@ def _hqc_main_event_notify_update_gunrate(msg_body_dict: dict):  # 充电枪费�
         else:
             pass
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_update_gunrate error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_update_gunrate error: {e}")
 
 
 def _hqc_main_event_reply_update_gunrate(msg_body_dict: dict):  # 充电枪费率同步应答消息
@@ -1952,7 +1965,7 @@ def _hqc_main_event_reply_update_gunrate(msg_body_dict: dict):  # 充电枪费�
         else:
             pass
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_update_gunrate error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_update_gunrate error: {e}")
 
 
 def _hqc_main_event_notify_update_startup(msg_body_dict: dict):  # 充电启动策略同步消息
@@ -1968,7 +1981,7 @@ def _hqc_main_event_notify_update_startup(msg_body_dict: dict):  # 充电启动�
             topic = HHhdlist.topic_hqc_main_event_notify_update_startup
             app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_update_startup error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_update_startup error: {e}")
 
 
 def _hqc_main_event_reply_update_startup(msg_body_dict: dict):  # 充电启动策略同步应答消息
@@ -1983,7 +1996,7 @@ def _hqc_main_event_reply_update_startup(msg_body_dict: dict):  # 充电启动�
             "reason": reason,
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_update_startup error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_update_startup error: {e}")
 
 
 def _hqc_main_event_notify_update_dispatch(msg_body_dict: dict):  # 功率分配策略同步消息
@@ -1999,7 +2012,7 @@ def _hqc_main_event_notify_update_dispatch(msg_body_dict: dict):  # 功率分配
             topic = HHhdlist.topic_hqc_main_event_notify_update_dispatch
             app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_update_dispatch error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_update_dispatch error: {e}")
 
 
 def _hqc_main_event_reply_update_dispatch(msg_body_dict: dict):  # 功率分配策略同步应答消息
@@ -2014,7 +2027,7 @@ def _hqc_main_event_reply_update_dispatch(msg_body_dict: dict):  # 功率分配�
             "reason": reason,
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_update_dispatch error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_update_dispatch error: {e}")
 
 
 def _hqc_main_event_notify_update_offlinelist(msg_body_dict: dict):  # 离线名单版本同步消息
@@ -2030,7 +2043,7 @@ def _hqc_main_event_notify_update_offlinelist(msg_body_dict: dict):  # 离线名
             topic = HHhdlist.topic_hqc_main_event_notify_update_offlinelist
             app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_update_offlinelist error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_update_offlinelist error: {e}")
 
 
 def _hqc_main_event_reply_update_offflinelist(msg_body_dict: dict):  # 离线名单版本同步应答消息
@@ -2042,7 +2055,7 @@ def _hqc_main_event_reply_update_offflinelist(msg_body_dict: dict):  # 离线名
             "reason": reason,
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_update_offflinelist error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_update_offflinelist error: {e}")
 
 
 def _hqc_main_event_notify_offlinelist_log(msg_body_dict: dict):  # 离线名单项操作日志消息
@@ -2058,7 +2071,7 @@ def _hqc_main_event_notify_offlinelist_log(msg_body_dict: dict):  # 离线名单
             topic = HHhdlist.topic_hqc_main_event_notify_offlinelist_log
             app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_offlinelist_log error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_offlinelist_log error: {e}")
 
 
 def _hqc_main_event_reply_offlinelist_log(msg_body_dict: dict):  # 离线名单项操作日志应答消息
@@ -2074,7 +2087,7 @@ def _hqc_main_event_reply_offlinelist_log(msg_body_dict: dict):  # 离线名单�
             "reason": reason,
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_offlinelist_log error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_offlinelist_log error: {e}")
 
 
 def _hqc_main_event_notify_clear(msg_body_dict: dict):  # 清除故障、事件消息
@@ -2086,7 +2099,7 @@ def _hqc_main_event_notify_clear(msg_body_dict: dict):  # 清除故障、事件�
         topic = HHhdlist.topic_hqc_main_event_notify_clear
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_clear error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_clear error: {e}")
 
 
 def _hqc_main_event_reply_clear(msg_body_dict: dict):  # 清除故障、事件应答消息
@@ -2098,7 +2111,7 @@ def _hqc_main_event_reply_clear(msg_body_dict: dict):  # 清除故障、事件�
             "result": result,
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_clear error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_clear error: {e}")
 
 
 def _hqc_sys_upgrade_notify_notify(msg_body_dict: dict):  # 升级控制消息
@@ -2122,7 +2135,7 @@ def _hqc_sys_upgrade_notify_notify(msg_body_dict: dict):  # 升级控制消息
         topic = HHhdlist.topic_hqc_sys_upgrade_notify_notify
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_upgrade_notify_notify error: {e}")
+        HSyslog.log_error(f"_hqc_sys_upgrade_notify_notify error: {e}")
 
 
 def _hqc_sys_upgrade_reply_notify(msg_body_dict: dict):  # 升级控制应答消息
@@ -2137,7 +2150,7 @@ def _hqc_sys_upgrade_reply_notify(msg_body_dict: dict):  # 升级控制应答消
             "result": result,
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_upgrade_reply_notify error: {e}")
+        HSyslog.log_error(f"_hqc_sys_upgrade_reply_notify error: {e}")
 
 
 def _hqc_sys_upgrade_notify_process(msg_body_dict: dict):  # 升级进度消息
@@ -2151,7 +2164,7 @@ def _hqc_sys_upgrade_notify_process(msg_body_dict: dict):  # 升级进度消息
             "process": process,
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_upgrade_notify_process error: {e}")
+        HSyslog.log_error(f"_hqc_sys_upgrade_notify_process error: {e}")
 
 
 def _hqc_sys_upgrade_notify_result(msg_body_dict: dict):  # 升级结果消息
@@ -2165,7 +2178,7 @@ def _hqc_sys_upgrade_notify_result(msg_body_dict: dict):  # 升级结果消息
             "result": result,
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_upgrade_notify_result error: {e}")
+        HSyslog.log_error(f"_hqc_sys_upgrade_notify_result error: {e}")
 
 
 def _hqc_sys_upload_notify_notify(msg_body_dict: dict):  # 日志文件上传请求消息
@@ -2178,7 +2191,7 @@ def _hqc_sys_upload_notify_notify(msg_body_dict: dict):  # 日志文件上传请
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_upload_notify_notify error: {e}")
+        HSyslog.log_error(f"_hqc_sys_upload_notify_notify error: {e}")
 
 
 def _hqc_sys_upload_reply_notify(msg_body_dict: dict):  # 日志文件上传请求应答消息
@@ -2190,7 +2203,7 @@ def _hqc_sys_upload_reply_notify(msg_body_dict: dict):  # 日志文件上传请�
         topic = HHhdlist.topic_hqc_sys_upload_reply_notify
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_upload_reply_notify error: {e}")
+        HSyslog.log_error(f"_hqc_sys_upload_reply_notify error: {e}")
 
 
 def _hqc_sys_upgrade_notify_version(msg_body_dict: dict):  # 读取版本号消息
@@ -2204,7 +2217,7 @@ def _hqc_sys_upgrade_notify_version(msg_body_dict: dict):  # 读取版本号消�
             topic = HHhdlist.topic_hqc_sys_upgrade_notify_version
             app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_upgrade_notify_version error: {e}")
+        HSyslog.log_error(f"_hqc_sys_upgrade_notify_version error: {e}")
 
 
 def _hqc_sys_upgrade_reply_version(msg_body_dict: dict):  # 读取版本号应答消息
@@ -2229,7 +2242,7 @@ def _hqc_sys_upgrade_reply_version(msg_body_dict: dict):  # 读取版本号应�
             if hard_version[0] != "" and soft_version[0] != "":
                 HStategrid.save_VerInfoEvt(device_id, 2, hard_version[0], soft_version[0])
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_upgrade_reply_version error: {e}")
+        HSyslog.log_error(f"_hqc_sys_upgrade_reply_version error: {e}")
 
 
 def _hqc_sys_upgrade_notify_control_command(msg_body_dict: dict):  # 远程控制命令消息
@@ -2243,7 +2256,7 @@ def _hqc_sys_upgrade_notify_control_command(msg_body_dict: dict):  # 远程控�
         topic = HHhdlist.topic_hqc_sys_upgrade_notify_control_command
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_upgrade_notify_control_command error: {e}")
+        HSyslog.log_error(f"_hqc_sys_upgrade_notify_control_command error: {e}")
 
 
 def _hqc_sys_upgrade_reply_control_command(msg_body_dict: dict):  # 远程控制命令应答消息
@@ -2258,7 +2271,7 @@ def _hqc_sys_upgrade_reply_control_command(msg_body_dict: dict):  # 远程控制
             "result": result
         }
     except Exception as e:
-        HSyslog.log_info(f"_hqc_sys_upgrade_reply_control_command error: {e}")
+        HSyslog.log_error(f"_hqc_sys_upgrade_reply_control_command error: {e}")
 
 
 def _hqc_main_event_notify_read_param(msg_body_dict: dict):  # 参数读取消息
@@ -2327,7 +2340,7 @@ def _hqc_main_event_notify_read_param(msg_body_dict: dict):  # 参数读取消�
                 app_publish(topic, info)
                 HHhdlist.read_param_is = False
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_read_param error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_read_param error: {e}")
 
 
 def _hqc_main_event_reply_read_param(msg_body_dict: dict):  # 参数读取应答消息
@@ -2358,7 +2371,7 @@ def _hqc_main_event_reply_read_param(msg_body_dict: dict):  # 参数读取应答
         HHhdlist.read_param_is = True
         return 0
     except Exception as e:
-        HSyslog.log_info(f"app_parameter_fetch_response's error: {e}")
+        HSyslog.log_error(f"app_parameter_fetch_response's error: {e}")
 
 
 def _hqc_main_event_notify_read_fault(msg_body_dict: dict):  # 当前/历史故障读取消息
@@ -2389,7 +2402,7 @@ def _hqc_main_event_notify_read_fault(msg_body_dict: dict):  # 当前/历史故�
         topic = HHhdlist.topic_hqc_main_event_notify_read_fault
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_read_fault error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_read_fault error: {e}")
 
 
 def _hqc_main_event_reply_read_fault(msg_body_dict: dict):  # 当前/历史读取应答消息
@@ -2400,7 +2413,7 @@ def _hqc_main_event_reply_read_fault(msg_body_dict: dict):  # 当前/历史读�
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_read_fault error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_read_fault error: {e}")
 
 
 def _hqc_main_event_notify_read_event(msg_body_dict: dict):  # 事件读取消息
@@ -2427,7 +2440,7 @@ def _hqc_main_event_notify_read_event(msg_body_dict: dict):  # 事件读取消�
         topic = HHhdlist.topic_hqc_main_event_notify_read_event
         app_publish(topic, info)
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_notify_read_event error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_notify_read_event error: {e}")
 
 
 def _hqc_main_event_reply_read_event(msg_body_dict: dict):  # 事件读取应答消息
@@ -2437,7 +2450,7 @@ def _hqc_main_event_reply_read_event(msg_body_dict: dict):  # 事件读取应答
     try:
         pass
     except Exception as e:
-        HSyslog.log_info(f"_hqc_main_event_reply_read_event error: {e}")
+        HSyslog.log_error(f"_hqc_main_event_reply_read_event error: {e}")
 
 
 app_func_dict = {
