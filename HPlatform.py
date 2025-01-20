@@ -1,15 +1,7 @@
 import datetime
 import hashlib
-import inspect
-import json
-import queue
-import random
 import socket
-import ssl
-import struct
-import subprocess
 import threading
-import time
 import urllib.request
 
 from paho.mqtt import client as mqtt_client
@@ -32,7 +24,7 @@ def tpp_init(host, port):
                 time.sleep(5)
             else:
                 break
-        HStategrid.save_VerInfoEvt(0, HHhdlist.device_ctrl_type.SDK.value, "20.0.2", "A.0.1")
+        HStategrid.save_VerInfoEvt(0, HHhdlist.device_ctrl_type.SDK.value, "20.0.2", "A.0.3")
         device_start_time = HStategrid.get_datetime_timestamp()
         HStategrid.save_DeviceInfo("device_start_time", HStategrid.DB_Data_Type.DATA_INT.value, "", device_start_time)
         device_start_nums = HStategrid.get_DeviceInfo("device_start_nums")
@@ -58,7 +50,7 @@ def tpp_init(host, port):
 
 
 class Client:
-    def __init__(self, broker_address, broker_port, keepalive=30, client_id=HStategrid.Device_ID):
+    def __init__(self, broker_address, broker_port, keepalive=20, client_id=HStategrid.Device_ID):
         self.broker_address = broker_address
         self.broker_port = broker_port
         self.keepalive = keepalive
@@ -92,7 +84,7 @@ class Client:
                         self.client.loop_start()  # 启动网络循环以处理连接
 
                         isReady = True
-                        HSyslog.log_info(f"Connected to MQTT broker at {self.broker_address}:{self.broker_port}")
+                        # HSyslog.log_info(f"Connected to MQTT broker at {self.broker_address}:{self.broker_port}")
 
                     except Exception as e:
                         HSyslog.log_info(f"Failed to connect to broker: {e}")
@@ -185,7 +177,7 @@ class Client:
                             topic = HStategrid.Device_ID
                             result = self.client.publish(topic, msg)
                             if result.rc == mqtt_client.MQTT_ERR_SUCCESS:
-                                HSyslog.log_info(f"Send_to_Platform: {msg} to topic: {topic}")
+                                # HSyslog.log_info(f"Send_to_Platform: {msg} to topic: {topic}")
                                 pass
                             else:
                                 HSyslog.log_info(f"Failed to send message, result code: {result.rc}")
@@ -266,29 +258,34 @@ def __mqtt_period_event(interval_102, interval_104, interval_106):
     period_time_104 = HStategrid.get_datetime_timestamp()
     period_time_106 = HStategrid.get_datetime_timestamp()
     while True:
-        if HStategrid.connect_status and HStategrid.hand_status:
-            if int(time.time()) - int(period_time_102) >= interval_102:
-                period_time_102 = HStategrid.get_datetime_timestamp()
-                hhd_to_tpp_102({})
-            if int(time.time()) - int(period_time_104) >= interval_104:
-                period_time_104 = HStategrid.get_datetime_timestamp()
-                hhd_to_tpp_104()
-                hhd_to_tpp_306()
+        if not HStategrid.connect_status:
             if int(time.time()) - int(period_time_106) >= interval_106:
                 period_time_106 = HStategrid.get_datetime_timestamp()
                 hhd_to_tpp_106({})
             time.sleep(1)
-        time.sleep(1)
+        if HStategrid.connect_status and HStategrid.hand_status:
+            if int(time.time()) - int(period_time_102) >= interval_102:
+                period_time_102 = HStategrid.get_datetime_timestamp()
+                hhd_to_tpp_102({})
+            if int(time.time()) - int(period_time_106) >= interval_106:
+                period_time_106 = HStategrid.get_datetime_timestamp()
+                hhd_to_tpp_106({})
+            if int(time.time()) - int(period_time_104) >= interval_104:
+                period_time_104 = HStategrid.get_datetime_timestamp()
+                hhd_to_tpp_104()
+                hhd_to_tpp_306()
+            time.sleep(1)
+
 
 
 def do_mqtt_period():
     interval_102 = HStategrid.get_DeviceInfo("report_102_interval")
-    interval_104 = HStategrid.get_DeviceInfo("report_104_interval") // 2
+    interval_104 = HStategrid.get_DeviceInfo("report_104_interval")
     interval_106 = HStategrid.get_DeviceInfo("report_106_interval") * 60
     if interval_102 is None or interval_102 == 0:
         interval_102 = 30
     if interval_104 is None or interval_104 == 0:
-        interval_104 = 30 // 2
+        interval_104 = 30
     if interval_106 is None or interval_106 == 0:
         interval_106 = 30 * 60
     mqttPeriodThread = threading.Thread(target=__mqtt_period_event, args=(interval_102, interval_104, interval_106))
@@ -893,20 +890,6 @@ def tpp_to_hhd_19(msg):
 def tpp_to_hhd_101(msg):
     try:
         heart_index = msg.get("heart_index")
-        if HHhdlist.qrcode_nums <= 5:
-            HHhdlist.qrcode_nums += 1
-            update_qrcode = {
-                "gun_id": [],
-                "qrcode": []
-            }
-            for gun_info in HStategrid.Gun_list:
-                qrcode = gun_info.get_gun_qr()
-                if qrcode:
-                    update_qrcode["gun_id"].append(gun_info.gun_id)
-                    update_qrcode["qrcode"].append(gun_info.get_gun_qr())
-                else:
-                    pass
-            HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_main_event_notify_update_qrcode, update_qrcode])
     except Exception as e:
         HSyslog.log_error(f"tpp_to_hhd_101'msg error: {msg}. {e}")
         return False
@@ -1678,6 +1661,19 @@ def hhd_to_tpp_102(msg):
         }
         HStategrid.Heartbeat += 1
         HStategrid.tpp_cmd_102(info)
+        if HStategrid.Heartbeat <= 4:
+            update_qrcode = {
+                "gun_id": [],
+                "qrcode": []
+            }
+            for gun_info in HStategrid.Gun_list:
+                qrcode = gun_info.get_gun_qr()
+                if qrcode:
+                    update_qrcode["gun_id"].append(gun_info.gun_id)
+                    update_qrcode["qrcode"].append(gun_info.get_gun_qr())
+                else:
+                    pass
+            HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_main_event_notify_update_qrcode, update_qrcode])
     except Exception as e:
         HSyslog.log_error(f"hhd_to_tpp_102'msg error: {msg}. {e}")
         return False
@@ -1697,7 +1693,7 @@ def hhd_to_tpp_104(msg=None):
                         "gun_type": gun_info.get_gun_type(),
                         "charge_status": charge_status,
                         "soc_now": 0,
-                        "fault_code": "0000",
+                        "fault_code": 0,
                         "car_connection_status": gun_info.get_gun_car_connect_status(),
                         "charge_cost": 0,
                         "dc_charge_vol": HHhdlist.gun.get(gun_id, {}).get(112, 0),
@@ -1705,16 +1701,16 @@ def hhd_to_tpp_104(msg=None):
                         "bms_need_vol": 0,
                         "bms_need_cur": 0,
                         "bms_charge_mode": 2,
-                        "ac_a_vol": 3800,
-                        "ac_b_vol": 3800,
-                        "ac_c_vol": 3800,
+                        "ac_a_vol": 0,
+                        "ac_b_vol": 0,
+                        "ac_c_vol": 0,
                         "ac_a_cur": 0,
                         "ac_b_cur": 0,
                         "ac_c_cur": 0,
                         "charge_full_time": 0,
                         "charge_time": 0,
                         "charge_kw_amount": 0,
-                        "start_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
+                        "start_meter": 0,
                         "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
                         "start_charge_type": 0,
                         "charge_policy": 0,
@@ -1746,7 +1742,7 @@ def hhd_to_tpp_104(msg=None):
                             "gun_type": gun_info.get_gun_type(),
                             "charge_status": charge_status,
                             "soc_now": HHhdlist.bms.get(gun_id, {}).get(106, 0),
-                            "fault_code": "0000",
+                            "fault_code": 0,
                             "car_connection_status": 2,
                             "charge_cost": 0,
                             "dc_charge_vol": HHhdlist.gun.get(gun_id, {}).get(112, 0),
@@ -1754,17 +1750,17 @@ def hhd_to_tpp_104(msg=None):
                             "bms_need_vol": HHhdlist.bms.get(gun_id, {}).get(100, 0),
                             "bms_need_cur": 0,
                             "bms_charge_mode": HHhdlist.bms.get(gun_id, {}).get(102, 0),
-                            "ac_a_vol": 3800,
-                            "ac_b_vol": 3800,
-                            "ac_c_vol": 3800,
+                            "ac_a_vol": 0,
+                            "ac_b_vol": 0,
+                            "ac_c_vol": 0,
                             "ac_a_cur": 0,
                             "ac_b_cur": 0,
                             "ac_c_cur": 0,
                             "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                             "charge_time": HStategrid.Gun_list[gun_id].get_gun_charge("charge_time"),
                             "charge_kw_amount": 0,
-                            "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge("start_meter_value"),
-                            "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
+                            "start_meter": 0,
+                            "now_meter": 0,
                             "start_charge_type": start_charge_type,
                             "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy"),
                             "charge_policy_param": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy_param"),
@@ -1780,11 +1776,13 @@ def hhd_to_tpp_104(msg=None):
                         for gun in gun_list:
                             # HSyslog.log_info(f"{gun}: {HStategrid.Gun_list[gun].get_gun_charge()}")
                             # HSyslog.log_info(f"{gun}: {HHhdlist.gun.get(gun, {})}")
+                            info["start_meter"] += HStategrid.Gun_list[gun].get_gun_charge("start_meter_value")
+                            info["now_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
                             info["charge_cost"] += HStategrid.Gun_list[gun].get_gun_charge("total_cost") // 10
                             info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
                             info["charge_kw_amount"] += HStategrid.Gun_list[gun].get_gun_charge("total_energy")
                             info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                            info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
+                            info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 10
                     else:
                         info = {
                             "device_id": HStategrid.Device_ID,
@@ -1793,7 +1791,7 @@ def hhd_to_tpp_104(msg=None):
                             "gun_type": gun_info.get_gun_type(),
                             "charge_status": charge_status,
                             "soc_now": HHhdlist.bms.get(gun_id, {}).get(106, 0),
-                            "fault_code": "0000",
+                            "fault_code": 0,
                             "car_connection_status": 2,
                             "charge_cost": 0,
                             "dc_charge_vol": HHhdlist.gun.get(gun_id, {}).get(112, 0),
@@ -1801,17 +1799,17 @@ def hhd_to_tpp_104(msg=None):
                             "bms_need_vol": HHhdlist.bms.get(gun_id, {}).get(100, 0),
                             "bms_need_cur": 0,
                             "bms_charge_mode": HHhdlist.bms.get(gun_id, {}).get(102, 0),
-                            "ac_a_vol": 3800,
-                            "ac_b_vol": 3800,
-                            "ac_c_vol": 3800,
+                            "ac_a_vol": 0,
+                            "ac_b_vol": 0,
+                            "ac_c_vol": 0,
                             "ac_a_cur": 0,
                             "ac_b_cur": 0,
                             "ac_c_cur": 0,
                             "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                             "charge_time": 0,
                             "charge_kw_amount": 0,
-                            "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge("start_meter_value"),
-                            "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
+                            "start_meter": 0,
+                            "now_meter": 0,
                             "start_charge_type": start_charge_type,
                             "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy"),
                             "charge_policy_param": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy_param"),
@@ -1827,9 +1825,11 @@ def hhd_to_tpp_104(msg=None):
                         for gun in gun_list:
                             # HSyslog.log_info(f"{gun}: {HStategrid.Gun_list[gun].get_gun_charge()}")
                             # HSyslog.log_info(f"{gun}: {HHhdlist.gun.get(gun, {})}")
+                            info["start_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
+                            info["now_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
                             info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
                             info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                            info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
+                            info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 10
                     HStategrid.tpp_cmd_104(info)
                 elif charge_status == HStategrid.Gun_Status.Charging_completed_not_unplugged.value:
                     gun_list = HStategrid.Gun_list[gun_id].get_gun_charge_gun_id()
@@ -1850,8 +1850,8 @@ def hhd_to_tpp_104(msg=None):
                         "gun_id": gun_id + 1,
                         "gun_type": gun_info.get_gun_type(),
                         "charge_status": charge_status,
-                        "soc_now": HHhdlist.bms.get(gun_id, {}).get(106, 0),
-                        "fault_code": "0000",
+                        "soc_now": 0,
+                        "fault_code": 0,
                         "car_connection_status": 2,
                         "charge_cost": 0,
                         "dc_charge_vol": HHhdlist.gun.get(gun_id, {}).get(112, 0),
@@ -1859,16 +1859,16 @@ def hhd_to_tpp_104(msg=None):
                         "bms_need_vol": HHhdlist.bms.get(gun_id, {}).get(100, 0),
                         "bms_need_cur": 0,
                         "bms_charge_mode": HHhdlist.bms.get(gun_id, {}).get(102, 0),
-                        "ac_a_vol": 3800,
-                        "ac_b_vol": 3800,
-                        "ac_c_vol": 3800,
+                        "ac_a_vol": 0,
+                        "ac_b_vol": 0,
+                        "ac_c_vol": 0,
                         "ac_a_cur": 0,
                         "ac_b_cur": 0,
                         "ac_c_cur": 0,
-                        "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
-                        "charge_time": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("charge_time"),
+                        "charge_full_time": 0,
+                        "charge_time": 0,
                         "charge_kw_amount": 0,
-                        "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("start_meter_value"),
+                        "start_meter": 0,
                         "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
                         "start_charge_type": start_charge_type,
                         "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("charge_policy"),
@@ -1883,11 +1883,9 @@ def hhd_to_tpp_104(msg=None):
                         "device_temperature": 800,
                     }
                     for gun in gun_list:
-                        info["charge_cost"] += HStategrid.Gun_list[gun].get_gun_charge_reserve("total_cost") // 10
                         info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
-                        info["charge_kw_amount"] += HStategrid.Gun_list[gun].get_gun_charge_reserve("total_energy")
                         info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                        info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
+                        # info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 10
                     HStategrid.tpp_cmd_104(info)
         else:
             gun_id = msg.get("gun_id")
@@ -1900,7 +1898,7 @@ def hhd_to_tpp_104(msg=None):
                     "gun_type": HStategrid.Gun_list[gun_id].get_gun_type(),
                     "charge_status": charge_status,
                     "soc_now": 0,
-                    "fault_code": "0000",
+                    "fault_code": 0,
                     "car_connection_status": HStategrid.Gun_list[gun_id].get_gun_car_connect_status(),
                     "charge_cost": 0,
                     "dc_charge_vol": HHhdlist.gun.get(gun_id, {}).get(112, 0),
@@ -1908,16 +1906,16 @@ def hhd_to_tpp_104(msg=None):
                     "bms_need_vol": 0,
                     "bms_need_cur": 0,
                     "bms_charge_mode": 2,
-                    "ac_a_vol": 3800,
-                    "ac_b_vol": 3800,
-                    "ac_c_vol": 3800,
+                    "ac_a_vol": 0,
+                    "ac_b_vol": 0,
+                    "ac_c_vol": 0,
                     "ac_a_cur": 0,
                     "ac_b_cur": 0,
                     "ac_c_cur": 0,
                     "charge_full_time": 0,
                     "charge_time": 0,
                     "charge_kw_amount": 0,
-                    "start_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
+                    "start_meter": 0,
                     "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
                     "start_charge_type": 0,
                     "charge_policy": 0,
@@ -1941,7 +1939,7 @@ def hhd_to_tpp_104(msg=None):
                     charge_mode = 0
                 else:
                     charge_mode = 1
-                if HStategrid.Gun_list[gun_id].gun_charge_cost and HStategrid.Gun_list[gun_id].gun_charge_session:
+                if HStategrid.Gun_list[gun_id].gun_charge_cost is True and HStategrid.Gun_list[gun_id].gun_charge_session is True:
                     info = {
                         "device_id": HStategrid.Device_ID,
                         "gun_num": HHhdlist.gun_num,
@@ -1949,7 +1947,7 @@ def hhd_to_tpp_104(msg=None):
                         "gun_type": HStategrid.Gun_list[gun_id].get_gun_type(),
                         "charge_status": charge_status,
                         "soc_now": HHhdlist.bms.get(gun_id, {}).get(106, 0),
-                        "fault_code": "0000",
+                        "fault_code": 0,
                         "car_connection_status": 2,
                         "charge_cost": 0,
                         "dc_charge_vol": HHhdlist.gun.get(gun_id, {}).get(112, 0),
@@ -1957,17 +1955,17 @@ def hhd_to_tpp_104(msg=None):
                         "bms_need_vol": HHhdlist.bms.get(gun_id, {}).get(100, 0),
                         "bms_need_cur": 0,
                         "bms_charge_mode": HHhdlist.bms.get(gun_id, {}).get(102, 0),
-                        "ac_a_vol": 3800,
-                        "ac_b_vol": 3800,
-                        "ac_c_vol": 3800,
+                        "ac_a_vol": 0,
+                        "ac_b_vol": 0,
+                        "ac_c_vol": 0,
                         "ac_a_cur": 0,
                         "ac_b_cur": 0,
                         "ac_c_cur": 0,
                         "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                         "charge_time": HStategrid.Gun_list[gun_id].get_gun_charge("charge_time"),
                         "charge_kw_amount": 0,
-                        "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge("start_meter_value"),
-                        "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
+                        "start_meter": 0,
+                        "now_meter": 0,
                         "start_charge_type": start_charge_type,
                         "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy"),
                         "charge_policy_param": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy_param"),
@@ -1981,11 +1979,15 @@ def hhd_to_tpp_104(msg=None):
                         "device_temperature": 800,
                     }
                     for gun in gun_list:
+                        # HSyslog.log_info(f"{gun}: {HStategrid.Gun_list[gun].get_gun_charge()}")
+                        # HSyslog.log_info(f"{gun}: {HHhdlist.gun.get(gun, {})}")
+                        info["start_meter"] += HStategrid.Gun_list[gun].get_gun_charge("start_meter_value")
+                        info["now_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
                         info["charge_cost"] += HStategrid.Gun_list[gun].get_gun_charge("total_cost") // 10
                         info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
                         info["charge_kw_amount"] += HStategrid.Gun_list[gun].get_gun_charge("total_energy")
                         info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                        info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
+                        info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 10
                 else:
                     info = {
                         "device_id": HStategrid.Device_ID,
@@ -1994,7 +1996,7 @@ def hhd_to_tpp_104(msg=None):
                         "gun_type": HStategrid.Gun_list[gun_id].get_gun_type(),
                         "charge_status": charge_status,
                         "soc_now": HHhdlist.bms.get(gun_id, {}).get(106, 0),
-                        "fault_code": "0000",
+                        "fault_code": 0,
                         "car_connection_status": 2,
                         "charge_cost": 0,
                         "dc_charge_vol": HHhdlist.gun.get(gun_id, {}).get(112, 0),
@@ -2002,17 +2004,17 @@ def hhd_to_tpp_104(msg=None):
                         "bms_need_vol": HHhdlist.bms.get(gun_id, {}).get(100, 0),
                         "bms_need_cur": 0,
                         "bms_charge_mode": HHhdlist.bms.get(gun_id, {}).get(102, 0),
-                        "ac_a_vol": 3800,
-                        "ac_b_vol": 3800,
-                        "ac_c_vol": 3800,
+                        "ac_a_vol": 0,
+                        "ac_b_vol": 0,
+                        "ac_c_vol": 0,
                         "ac_a_cur": 0,
                         "ac_b_cur": 0,
                         "ac_c_cur": 0,
                         "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                         "charge_time": 0,
                         "charge_kw_amount": 0,
-                        "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge("start_meter_value"),
-                        "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
+                        "start_meter": 0,
+                        "now_meter": 0,
                         "start_charge_type": start_charge_type,
                         "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy"),
                         "charge_policy_param": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy_param"),
@@ -2022,13 +2024,17 @@ def hhd_to_tpp_104(msg=None):
                         "book_start_time": 0,
                         "start_card_balance": 0,
                         "charge_mode": charge_mode,
-                        "charge_power_kw": HHhdlist.gun.get(gun_id, {}).get(115, 0) // 100,
+                        "charge_power_kw": 0,
                         "device_temperature": 800,
                     }
                     for gun in gun_list:
+                        # HSyslog.log_info(f"{gun}: {HStategrid.Gun_list[gun].get_gun_charge()}")
+                        # HSyslog.log_info(f"{gun}: {HHhdlist.gun.get(gun, {})}")
+                        info["start_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
+                        info["now_meter"] += HHhdlist.meter.get(gun, {}).get(0, 0)
                         info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
                         info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                        info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
+                        info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 10
                 HStategrid.tpp_cmd_104(info)
             elif charge_status == HStategrid.Gun_Status.Charging_completed_not_unplugged.value:
                 gun_list = HStategrid.Gun_list[gun_id].get_gun_charge_gun_id()
@@ -2049,8 +2055,8 @@ def hhd_to_tpp_104(msg=None):
                     "gun_id": gun_id + 1,
                     "gun_type": HStategrid.Gun_list[gun_id].get_gun_type(),
                     "charge_status": charge_status,
-                    "soc_now": HHhdlist.bms.get(gun_id, {}).get(106, 0),
-                    "fault_code": "0000",
+                    "soc_now": 0,
+                    "fault_code": 0,
                     "car_connection_status": 2,
                     "charge_cost": 0,
                     "dc_charge_vol": HHhdlist.gun.get(gun_id, {}).get(112, 0),
@@ -2058,16 +2064,16 @@ def hhd_to_tpp_104(msg=None):
                     "bms_need_vol": HHhdlist.bms.get(gun_id, {}).get(100, 0),
                     "bms_need_cur": 0,
                     "bms_charge_mode": HHhdlist.bms.get(gun_id, {}).get(102, 0),
-                    "ac_a_vol": 3800,
-                    "ac_b_vol": 3800,
-                    "ac_c_vol": 3800,
+                    "ac_a_vol": 0,
+                    "ac_b_vol": 0,
+                    "ac_c_vol": 0,
                     "ac_a_cur": 0,
                     "ac_b_cur": 0,
                     "ac_c_cur": 0,
-                    "charge_full_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
-                    "charge_time": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("charge_time"),
+                    "charge_full_time": 0,
+                    "charge_time": 0,
                     "charge_kw_amount": 0,
-                    "start_meter": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("start_meter_value"),
+                    "start_meter": 0,
                     "now_meter": HHhdlist.meter.get(gun_id, {}).get(0, 0),
                     "start_charge_type": start_charge_type,
                     "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge_reserve("charge_policy"),
@@ -2082,11 +2088,9 @@ def hhd_to_tpp_104(msg=None):
                     "device_temperature": 800,
                 }
                 for gun in gun_list:
-                    info["charge_cost"] += HStategrid.Gun_list[gun].get_gun_charge_reserve("total_cost") // 10
                     info["dc_charge_cur"] += HHhdlist.gun.get(gun, {}).get(113, 0)
-                    info["charge_kw_amount"] += HStategrid.Gun_list[gun].get_gun_charge_reserve("total_energy")
                     info["bms_need_cur"] += HHhdlist.bms.get(gun, {}).get(101, 0)
-                    info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 100
+                    # info["charge_power_kw"] += HHhdlist.gun.get(gun, {}).get(115, 0) // 10
                 HStategrid.tpp_cmd_104(info)
     except Exception as e:
         HSyslog.log_error(f"hhd_to_tpp_104'msg error: {e}")
@@ -2098,7 +2102,8 @@ def hhd_to_tpp_106(msg):
 
         info = {
             "device_power_model_num": HStategrid.get_DeviceInfo("00111"),
-            "device_power": HStategrid.get_DeviceInfo("00121"),
+            # "device_power": HStategrid.get_DeviceInfo("00121"),
+            "device_power": 4,
             "device_id": HStategrid.Device_ID,
             "offline_is": 0x01,
             "device_version": HStategrid.get_VerInfoEvt(HHhdlist.device_ctrl_type.DTU.value)[1],
@@ -2167,11 +2172,11 @@ def hhd_to_tpp_304(msg):
             "brm_vin": HHhdlist.bms.get(gun_id, {}).get(9, 0),
             "brm_BMS_version": HHhdlist.bms.get(gun_id, {}).get(10, 0),
             "bcp_max_voltage": HHhdlist.bms.get(gun_id, {}).get(11, 0),
-            "bcp_max_current": HHhdlist.bms.get(gun_id, {}).get(12, 0),
+            "bcp_max_current": 4000 - HHhdlist.bms.get(gun_id, {}).get(12, 0),
             "bcp_max_power": HHhdlist.bms.get(gun_id, {}).get(13, 0),
             "bcp_total_voltage": HHhdlist.bms.get(gun_id, {}).get(14, 0),
             "bcp_max_temperature": HHhdlist.bms.get(gun_id, {}).get(15, 0),
-            "bcp_battery_soc": HHhdlist.bms.get(gun_id, {}).get(16, 0),
+            "bcp_battery_soc": HHhdlist.bms.get(gun_id, {}).get(16, 0) * 10,
             "bcp_battery_soc_current_voltage": HHhdlist.bms.get(gun_id, {}).get(17, 0),
             "bro_BMS_isReady": 0xAA,
             "cro_cevice_isReady": 0xAA,
@@ -2197,16 +2202,20 @@ def hhd_to_tpp_306(msg=None):
                         "bcl_current_need": HHhdlist.bms.get(gun_id, {}).get(101, 0),
                         "bcl_charge_mode": HHhdlist.bms.get(gun_id, {}).get(102, 0),
                         "bcs_test_voltage": HHhdlist.bms.get(gun_id, {}).get(103, 0),
-                        "bcs_test_current": HHhdlist.bms.get(gun_id, {}).get(104, 0),
-                        "bcs_max_single_voltage": HHhdlist.bms.get(gun_id, {}).get(105, 0),
-                        "bcs_max_single_no": 0,
+                        "bcs_test_current": 4000 - HHhdlist.bms.get(gun_id, {}).get(104, 0),
+                        "bcs_max_single_voltage": int(str(bin(HHhdlist.bms.get(gun_id, {}).get(105, 0)))[-12:], 2),
+                        "bcs_max_single_no": int(str(bin(HHhdlist.bms.get(gun_id, {}).get(105, 0)))[2:-12], 2),
                         "bcs_current_soc": HHhdlist.bms.get(gun_id, {}).get(106, 0),
                         "last_charge_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                         "bsm_single_no": HHhdlist.bms.get(gun_id, {}).get(108, 0),
-                        "bsm_max_temperature": HHhdlist.bms.get(gun_id, {}).get(109, 0),
-                        "bsm_max_temperature_check_no": HHhdlist.bms.get(gun_id, {}).get(110, 0),
-                        "bsm_min_temperature": HHhdlist.bms.get(gun_id, {}).get(111, 0),
-                        "bsm_min_temperature_check_no": HHhdlist.bms.get(gun_id, {}).get(112, 0),
+                        # "bsm_max_temperature": HHhdlist.bms.get(gun_id, {}).get(109, 0),
+                        # "bsm_max_temperature_check_no": HHhdlist.bms.get(gun_id, {}).get(110, 0),
+                        # "bsm_min_temperature": HHhdlist.bms.get(gun_id, {}).get(111, 0),
+                        # "bsm_min_temperature_check_no": HHhdlist.bms.get(gun_id, {}).get(112, 0),
+                        "bsm_max_temperature": 100,
+                        "bsm_max_temperature_check_no": 18,
+                        "bsm_min_temperature": 70,
+                        "bsm_min_temperature_check_no": 28,
                         "bsm_voltage_too_high_or_too_low": 0x00,
                         "bsm_car_battery_soc_too_high_or_too_low": 0x00,
                         "bsm_car_battery_charge_over_current": 0x00,
@@ -2227,16 +2236,16 @@ def hhd_to_tpp_306(msg=None):
                 "bcl_current_need": HHhdlist.bms.get(gun_id, {}).get(101, 0),
                 "bcl_charge_mode": HHhdlist.bms.get(gun_id, {}).get(102, 0),
                 "bcs_test_voltage": HHhdlist.bms.get(gun_id, {}).get(103, 0),
-                "bcs_test_current": HHhdlist.bms.get(gun_id, {}).get(104, 0),
-                "bcs_max_single_voltage": HHhdlist.bms.get(gun_id, {}).get(105, 0),
-                "bcs_max_single_no": 0,
+                "bcs_test_current": 4000 - HHhdlist.bms.get(gun_id, {}).get(104, 0),
+                "bcs_max_single_voltage": int(str(bin(HHhdlist.bms.get(gun_id, {}).get(105, 0)))[-12:], 2),
+                "bcs_max_single_no": int(str(bin(HHhdlist.bms.get(gun_id, {}).get(105, 0)))[2:-12], 2),
                 "bcs_current_soc": HHhdlist.bms.get(gun_id, {}).get(106, 0),
                 "last_charge_time": HHhdlist.bms.get(gun_id, {}).get(107, 0),
                 "bsm_single_no": HHhdlist.bms.get(gun_id, {}).get(108, 0),
-                "bsm_max_temperature": HHhdlist.bms.get(gun_id, {}).get(109, 0),
-                "bsm_max_temperature_check_no": HHhdlist.bms.get(gun_id, {}).get(110, 0),
-                "bsm_min_temperature": HHhdlist.bms.get(gun_id, {}).get(111, 0),
-                "bsm_min_temperature_check_no": HHhdlist.bms.get(gun_id, {}).get(112, 0),
+                "bsm_max_temperature": 100,
+                "bsm_max_temperature_check_no": 18,
+                "bsm_min_temperature": 70,
+                "bsm_min_temperature_check_no": 28,
                 "bsm_voltage_too_high_or_too_low": 0x00,
                 "bsm_car_battery_soc_too_high_or_too_low": 0x00,
                 "bsm_car_battery_charge_over_current": 0x00,
@@ -2295,13 +2304,13 @@ def hhd_to_tpp_312(msg):
             "device_id": HStategrid.Device_ID,
             "charge_id": HStategrid.Gun_list[gun_id].get_gun_charge("charge_id"),
             "charge_status": HStategrid.Gun_list[gun_id].get_gun_status(),
-            "bst_stop_soc": HHhdlist.bms.get(gun_id, {}).get(106, 0),
-            # "bsd_battery_low_voltage": HHhdlist.bms.get(gun_id, {}).get(18, 0),
-            # "bsd_battery_high_voltage": HHhdlist.bms.get(gun_id, {}).get(105, 0),
-            "bsd_battery_low_voltage": HHhdlist.bms.get(gun_id, {}).get(18, 0) * 10,
-            "bsd_battery_high_voltage": 0,
-            "bsd_battery_low_temperature": HHhdlist.bms.get(gun_id, {}).get(111, 0),
-            "bsd_battery_high_temperature": HHhdlist.bms.get(gun_id, {}).get(109, 0),
+            "bst_stop_soc": HStategrid.Gun_list[gun_id].get_gun_charge_order("stop_soc"),
+            "bsd_battery_low_voltage": HStategrid.Gun_list[gun_id].get_gun_charge_order("bat_min_vol"),
+            "bsd_battery_high_voltage": HStategrid.Gun_list[gun_id].get_gun_charge_order("bat_max_vol"),
+            # "bsd_battery_low_temperature": HStategrid.Gun_list[gun_id].get_gun_charge_order("bat_min_temperature"),
+            # "bsd_battery_high_temperature": HStategrid.Gun_list[gun_id].get_gun_charge_order("bat_max_temperature"),
+            "bsd_battery_low_temperature": HStategrid.Gun_list[gun_id].get_gun_charge_order("bat_max_temperature"),
+            "bsd_battery_high_temperature": HStategrid.Gun_list[gun_id].get_gun_charge_order("bat_min_temperature"),
             "bem_2560_00": 0x00,
             "bem_2560_AA": 0x00,
             "bem_sync_max_output_timeout": 0x00,
@@ -2328,9 +2337,9 @@ def hhd_to_tpp_202(msg):
                 start_time_h = int(datetime.fromtimestamp(interval.get("start_time")).strftime("%H"))
                 start_time_m = int(datetime.fromtimestamp(interval.get("start_time")).strftime("%M"))
                 if start_time_m < 30:
-                    kwh_amount[start_time_h * 2] = (interval.get("stop_meter_value") - interval.get("start_meter_value")) // 10
+                    kwh_amount[start_time_h * 2] = (interval.get("stop_meter_value") - interval.get("start_meter_value"))
                 else:
-                    kwh_amount[start_time_h * 2 + 1] = (interval.get("stop_meter_value") - interval.get("start_meter_value")) // 10
+                    kwh_amount[start_time_h * 2 + 1] = (interval.get("stop_meter_value") - interval.get("start_meter_value"))
             charge_stop_reason = HHhdlist.get_stop_reason(HStategrid.Gun_list[gun_id].get_gun_charge_order("stop_reason"))
             if charge_stop_reason == "1008":
                 charge_card_stop_is = 0
@@ -2357,11 +2366,11 @@ def hhd_to_tpp_202(msg):
                 "charge_kwh_amount": HStategrid.Gun_list[gun_id].get_gun_charge_order("total_energy"),
                 "charge_start_meter": HStategrid.Gun_list[gun_id].get_gun_charge_order("start_meter_value"),
                 "charge_stop_meter": HStategrid.Gun_list[gun_id].get_gun_charge_order("stop_meter_value"),
-                "charge_cost": HStategrid.Gun_list[gun_id].get_gun_charge_order("total_cost"),
+                "charge_cost": HStategrid.Gun_list[gun_id].get_gun_charge_order("total_electric_cost") // 10,
                 "charge_card_stop_is": charge_card_stop_is,
                 "charge_start_balance": 0,
                 "charge_stop_balance": 0,
-                "charge_server_cost": HStategrid.Gun_list[gun_id].get_gun_charge_order("total_service_cost"),
+                "charge_server_cost": HStategrid.Gun_list[gun_id].get_gun_charge_order("total_service_cost") // 10,
                 "pay_offline_is": 0x00,
                 "charge_policy": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy"),
                 "charge_policy_param": HStategrid.Gun_list[gun_id].get_gun_charge("charge_policy_param"),
@@ -2455,14 +2464,14 @@ def hhd_to_tpp_202(msg):
                         start_time_h = int(datetime.fromtimestamp(interval.get("start_time")).strftime("%H"))
                         start_time_m = int(datetime.fromtimestamp(interval.get("start_time")).strftime("%M"))
                         if start_time_m < 30:
-                            kwh_amount[start_time_h * 2] += (interval.get("stop_meter_value") - interval.get("start_meter_value")) // 10
+                            kwh_amount[start_time_h * 2] += (interval.get("stop_meter_value") - interval.get("start_meter_value"))
                         else:
-                            kwh_amount[start_time_h * 2 + 1] += (interval.get("stop_meter_value") - interval.get("start_meter_value")) // 10
+                            kwh_amount[start_time_h * 2 + 1] += (interval.get("stop_meter_value") - interval.get("start_meter_value"))
                     info["charge_kwh_amount"] += HStategrid.Gun_list[gun_id].get_gun_charge_order("total_energy")
                     info["charge_start_meter"] += HStategrid.Gun_list[gun_id].get_gun_charge_order("start_meter_value")
                     info["charge_stop_meter"] += HStategrid.Gun_list[gun_id].get_gun_charge_order("stop_meter_value")
-                    info["charge_cost"] += HStategrid.Gun_list[gun_id].get_gun_charge_order("total_cost")
-                    info["charge_server_cost"] += HStategrid.Gun_list[gun_id].get_gun_charge_order("total_service_cost")
+                    info["charge_cost"] += HStategrid.Gun_list[gun_id].get_gun_charge_order("total_electric_cost") // 10
+                    info["charge_server_cost"] += HStategrid.Gun_list[gun_id].get_gun_charge_order("total_service_cost") // 10
 
             info["kwh_amount"] = kwh_amount
             HStategrid.tpp_cmd_202(info)
@@ -2589,11 +2598,11 @@ def hhd_to_tpp_108(msg):
             "charge_id": msg.get("charge_id", ""),
         }
         HStategrid.tpp_cmd_108(info)
-        if msg.get("cmd_addr") == HStategrid.Gun_Connect_Status.Start_Charge.value:
-            info = {
-                "gun_id": msg.get("gun_id"),
-            }
-            hhd_to_tpp_304(info)
+        # if msg.get("cmd_addr") == HStategrid.Gun_Connect_Status.Start_Charge.value:
+        #     info = {
+        #         "gun_id": msg.get("gun_id"),
+        #     }
+        #     hhd_to_tpp_304(info)
     except Exception as e:
         HSyslog.log_error(f"hhd_to_tpp_108'msg error: {msg}. {e}")
         return False

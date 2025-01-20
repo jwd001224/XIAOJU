@@ -3,14 +3,12 @@ import hashlib
 import struct
 import threading
 from datetime import datetime
-import inspect
 import queue
 import sqlite3
 import time
 from enum import Enum
 
 import HSyslog
-import HHhdlist
 
 
 class tpp_mqtt_cmd_enum(Enum):
@@ -1047,7 +1045,7 @@ def tpp_cmd_104(data: dict):  # 设备发送，平台接收
         tpp_cmd_104_msg += info_to_hex(gun_type, 1, Encode_type.BIN.value)
         tpp_cmd_104_msg += info_to_hex(charge_status, 1, Encode_type.BIN.value)
         tpp_cmd_104_msg += info_to_hex(soc_now, 1, Encode_type.BIN.value)
-        tpp_cmd_104_msg += info_to_hex(fault_code, 4, Encode_type.ASCII.value)
+        tpp_cmd_104_msg += info_to_hex(fault_code, 4, Encode_type.BIN.value)
         tpp_cmd_104_msg += info_to_hex(car_connection_status, 1, Encode_type.BIN.value)
         tpp_cmd_104_msg += info_to_hex(charge_cost, 4, Encode_type.BIN.value)
         tpp_cmd_104_msg += info_to_hex(reserved, 8, Encode_type.BIN.value)
@@ -3801,12 +3799,12 @@ def info_to_mac(info, info_len, info_mode):
     for byte in info:
         mac_bytes.append(ord(byte))
 
-    # 将MAC字节填入到列表并在末尾补零到32字节
+    # 将MAC字节填入到列表并在末尾补零到32字节长度
     byte_array = mac_bytes + [0] * (32 - len(mac_bytes))
 
-    # 根据端模式调整每6字节的顺序
+    # 根据端模式调整每6字节长度的顺序
     if info_mode == Big_Little.BIG.value:
-        # 对前面的MAC字节部分每6字节块反转
+        # 对前面的MAC字节部分每6字节长度块反转
         byte_array[:len(mac_bytes)] = [byte for i in range(0, len(mac_bytes), 6)
                                        for byte in reversed(byte_array[i:i + 6])]
 
@@ -3861,7 +3859,7 @@ def info_to_hex(info, info_len, info_type, info_mode=INFO_MODEL):
             return result
     except Exception as e:
         HSyslog.log_error(f"input_data: .{info} .{e}")
-        return None
+        return [0] * info_len
 
 
 """
@@ -4371,8 +4369,8 @@ def save_DeviceOrder(dict_order: dict):
             kwh_amount_25 = ?, kwh_amount_26 = ?, kwh_amount_27 = ?, kwh_amount_28 = ?, kwh_amount_29 = ?, kwh_amount_30 = ?, kwh_amount_31 = ?, kwh_amount_32 = ?, 
             kwh_amount_33 = ?, kwh_amount_34 = ?, kwh_amount_35 = ?, kwh_amount_36 = ?, kwh_amount_37 = ?, kwh_amount_38 = ?, kwh_amount_39 = ?, kwh_amount_40 = ?, 
             kwh_amount_41 = ?, kwh_amount_42 = ?, kwh_amount_43 = ?, kwh_amount_44 = ?, kwh_amount_45 = ?, kwh_amount_46 = ?, kwh_amount_47 = ?, kwh_amount_48 = ?, 
-            start_source = ?, cloud_session_id = ?
-            WHERE device_session_id = ? ''',
+            start_source = ?, device_session_id = ?
+            WHERE cloud_session_id = ? ''',
             (dict_order.get("device_id"), dict_order.get("gun_type"), dict_order.get("gun_id"),
              dict_order.get("charge_id"), dict_order.get("charge_start_time"), dict_order.get("charge_stop_time"),
              dict_order.get("charge_time"), dict_order.get("charge_start_soc"), dict_order.get("charge_stop_soc"),
@@ -4387,7 +4385,7 @@ def save_DeviceOrder(dict_order: dict):
              dict_order.get("kwh_amount")[24], dict_order.get("kwh_amount")[25], dict_order.get("kwh_amount")[26], dict_order.get("kwh_amount")[27], dict_order.get("kwh_amount")[28], dict_order.get("kwh_amount")[29], dict_order.get("kwh_amount")[30], dict_order.get("kwh_amount")[31],
              dict_order.get("kwh_amount")[32], dict_order.get("kwh_amount")[33], dict_order.get("kwh_amount")[34], dict_order.get("kwh_amount")[35], dict_order.get("kwh_amount")[36], dict_order.get("kwh_amount")[37], dict_order.get("kwh_amount")[38], dict_order.get("kwh_amount")[39],
              dict_order.get("kwh_amount")[40], dict_order.get("kwh_amount")[41], dict_order.get("kwh_amount")[42], dict_order.get("kwh_amount")[43], dict_order.get("kwh_amount")[44], dict_order.get("kwh_amount")[45], dict_order.get("kwh_amount")[46], dict_order.get("kwh_amount")[47],
-             dict_order.get("start_source"), dict_order.get("cloud_session_id")))
+             dict_order.get("start_source"), dict_order.get("device_session_id")))
     conn.commit()
     conn.close()
 
@@ -4600,7 +4598,6 @@ def delete_DeviceOrder():
     conn.commit()
     conn.close()
     return result
-
 
 
 """

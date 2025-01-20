@@ -3,7 +3,6 @@ import os
 import platform
 import logging.handlers
 import gzip
-import shutil
 
 # 获取当前系统类型
 system_type = platform.system()
@@ -25,9 +24,9 @@ else:
     logging.basicConfig(level=logging.INFO, format=log_format)
 
 # 创建文件处理器
-log_filename = "/opt/hhd/LOG/HCLOG.log"
-log_directory = "/opt/hhd/LOG"
-log_max_size = 3 * 1024 * 1024  # 3MB
+log_filename = "/var/log/platform/hclog.log"
+log_directory = "/var/log/platform"
+log_max_size = 5 * 1024 * 1024  # 5MB
 count = 1
 
 if not os.path.exists(log_directory):
@@ -36,10 +35,10 @@ else:
     pass
 
 if system_type == 'Linux':
-    file_handler = logging.handlers.RotatingFileHandler(log_filename, maxBytes=log_max_size, backupCount=10)
+    file_handler = logging.handlers.RotatingFileHandler(log_filename, maxBytes=log_max_size, backupCount=30)
 else:
     file_handler = logging.handlers.RotatingFileHandler(log_filename, mode='a', maxBytes=log_max_size,
-                                                        backupCount=10)
+                                                        backupCount=30)
 file_handler.setFormatter(log_formatter)
 
 # 将处理器添加到日志记录器
@@ -57,7 +56,7 @@ logger = syslog_logger if system_type == 'Linux' else logging.getLogger()
 # 检查日志文件大小，超过限制则压缩并创建新文件
 def check_log_size(log_filename, max_size):
     global count
-    if os.path.getsize(log_filename) > max_size:
+    if os.path.getsize(log_filename) >= max_size:
         with open(log_filename, 'rb') as f_in, gzip.open(log_filename + str(count) + '.gz', 'wb') as f_out:
             count += 1
             f_out.writelines(f_in)
@@ -81,4 +80,3 @@ def log_error(msg):
     except Exception as e:
         print(f"\033[91m{e} .{inspect.currentframe().f_lineno}\033[0m")
         print(f"\033[91m date_msg: {msg}\033[0m")
-

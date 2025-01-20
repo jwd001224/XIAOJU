@@ -1,5 +1,4 @@
 #!/bin/python3
-import inspect
 import json
 import socket
 import threading
@@ -18,38 +17,38 @@ import HSyslog
 def hhd_init(host="127.0.0.1", port=1883):
     try:
         client = HMqttClient(host, port)
-        client.connect()
+        client.start_connect()
         do_mqtt_net_period()
         do_platform_device_data()
-        if HHhdlist.device_mqtt_status:
-            # net_status = {
-            #     "net_type": HHhdlist.net_type.no_net.value,
-            #     "net_sig_val": 0,
-            #     "net_id": HHhdlist.net_id.unknow.value
-            # }
-            # HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_sys_network_state, net_status])
-            get_param = {
-                "param_list": [104, 110, 111, 113, 114, 115, 117, 121, 122],
-                "device_type": HHhdlist.device_param_type.chargeSys.value,
-                "device_num": 0
-            }
-            HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_main_event_notify_read_param, get_param])
-            time.sleep(5)
-            get_param = {
-                "param_list": [169, 172, 209, 215, 216, 226, 222, 223, 224, 225],
-                "device_type": HHhdlist.device_param_type.gun.value,
-            }
-            HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_main_event_notify_read_param, get_param])
-            get_param = {
-                "device_type": [HHhdlist.device_ctrl_type.DTU.value, HHhdlist.device_ctrl_type.TIU.value]
-            }
-            HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_sys_upgrade_notify_version, get_param])
-            time.sleep(3)
-            HHhdlist.gun_num = HStategrid.get_DeviceInfo("00110")
-            for i in range(HHhdlist.gun_num):
-                instance = HStategrid.Gun_info(i)
-                HStategrid.Gun_list.append(instance)
-            HHhdlist.Device_ready = True
+        # if HHhdlist.device_mqtt_status:
+        # net_status = {
+        #     "net_type": HHhdlist.net_type.no_net.value,
+        #     "net_sig_val": 0,
+        #     "net_id": HHhdlist.net_id.unknow.value
+        # }
+        # HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_sys_network_state, net_status])
+        get_param = {
+            "param_list": [104, 110, 111, 113, 114, 115, 117, 121, 122],
+            "device_type": HHhdlist.device_param_type.chargeSys.value,
+            "device_num": 0
+        }
+        HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_main_event_notify_read_param, get_param])
+        time.sleep(5)
+        get_param = {
+            "param_list": [169, 172, 209, 215, 216, 226, 222, 223, 224, 225],
+            "device_type": HHhdlist.device_param_type.gun.value,
+        }
+        HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_main_event_notify_read_param, get_param])
+        get_param = {
+            "device_type": [HHhdlist.device_ctrl_type.DTU.value, HHhdlist.device_ctrl_type.TIU.value]
+        }
+        HHhdlist.platform_device_data.put([HHhdlist.topic_hqc_sys_upgrade_notify_version, get_param])
+        time.sleep(3)
+        HHhdlist.gun_num = HStategrid.get_DeviceInfo("00110")
+        for i in range(HHhdlist.gun_num):
+            instance = HStategrid.Gun_info(i)
+            HStategrid.Gun_list.append(instance)
+        HHhdlist.Device_ready = True
     except Exception as e:
         HSyslog.log_error(f"hhd_init error. {e}")
 
@@ -58,33 +57,47 @@ def hhd_init(host="127.0.0.1", port=1883):
 
 
 class HMqttClient:
-    def __init__(self, broker_address, broker_port, keepalive=60, client_id="Device_MQTT"):
+    def __init__(self, broker_address, broker_port, keepalive=90, client_id="Device_MQTT"):
         self.broker_address = broker_address
         self.broker_port = broker_port
         self.keepalive = keepalive
         self.client_id = client_id
-        self.client = mqtt.Client(client_id=self.client_id)
+        self.client = None
         self.send_thread = None
+        self.connect_thread = None
+
+    def start_connect(self):
+        if not self.connect_thread or not self.connect_thread.is_alive():
+            self.connect_thread = threading.Thread(target=self.connect, daemon=True)
+            self.connect_thread.start()
 
     def connect(self, isReady=False):
         """连接到MQTT服务器"""
         try:
-            try:
-                # 设置回调函数
-                self.client.on_connect = self._on_connect
-                self.client.on_disconnect = self._on_disconnect
-                self.client.on_message = self._on_message
+            while True:
+                if HHhdlist.device_mqtt_status is False:
+                    try:
+                        self.client = mqtt.Client(client_id=self.client_id)
+                        # 设置回调函数
+                        self.client.on_connect = self._on_connect
+                        self.client.on_disconnect = self._on_disconnect
+                        self.client.on_message = self._on_message
+                        self.client.connect(self.broker_address, self.broker_port, self.keepalive)
 
-                self.client.connect(self.broker_address, self.broker_port, self.keepalive)
-                self.subscribe()
-                self.client.loop_start()  # 启动网络循环以处理连接
-                isReady = True
-                HSyslog.log_info(f"Connected to Device MQTT broker at {self.broker_address}:{self.broker_port}")
-            except Exception as e:
-                HSyslog.log_error(f"Failed to Device Connect to broker: {e}")
+                        self.subscribe()
+                        self.client.loop_start()  # 启动网络循环以处理连接
 
-            if isReady:
-                self.start_send_thread()
+                        isReady = True
+                        HSyslog.log_info(f"Connected to Device MQTT broker at {self.broker_address}:{self.broker_port}")
+                    except Exception as e:
+                        HSyslog.log_error(f"Failed to Device Connect to broker: {e}")
+                        time.sleep(5)
+                else:
+                    time.sleep(30)
+
+                if isReady:
+                    self.start_send_thread()
+                time.sleep(5)
         except socket.error as e:
             HSyslog.log_error(f"connect_device: {e}")
             time.sleep(5)
@@ -111,13 +124,14 @@ class HMqttClient:
 
     def _on_disconnect(self, client, userdata, rc):
         """断开连接时的回调函数"""
-        HSyslog.log_info("check device connection is closed! rc = {}".format(rc))
-        HHhdlist.device_mqtt_status = False
-        # 断线自动重连
         try:
-            if rc != 0:
-                HSyslog.log_info("Attempting to device reconnect...")
-                self.reconnect()
+            HSyslog.log_info("check device connection is closed! rc = {}".format(rc))
+            self.client.loop_stop()
+            HHhdlist.device_mqtt_status = False
+            # 断线自动重连
+            #     if rc != 0:
+            #         HSyslog.log_info("Attempting to device reconnect...")
+            #         self.reconnect()
         except Exception as e:
             HSyslog.log_error(f"Device MQTT.close: {e}")
 
@@ -128,14 +142,13 @@ class HMqttClient:
             HSyslog.log_info("Reconnected to Device MQTT broker")
         except Exception as e:
             HSyslog.log_error(f"Device Reconnection failed: {e}")
-        time.sleep(10)
 
     def subscribe(self):
         """订阅主题"""
         for topic, topic_dict in app_func_dict.items():
             if topic_dict.get("isSubscribe"):
                 self.client.subscribe(topic)
-                HSyslog.log_info(f"{topic}")
+                HSyslog.log_info(f"Subscribed to topic: {topic}")
 
     def _on_message(self, client, userdata, msg):
         """接收消息时的回调函数"""
@@ -145,10 +158,9 @@ class HMqttClient:
             if receive_msg and topic:
                 if topic in app_func_dict.keys():
                     receive_dict = json.loads(receive_msg)
-                    app_func_dict[topic]["func"](receive_dict.get("body", {}))
-                    # HSyslog.log_info(f"Received Device message: '{receive_msg}' on topic {topic}")
                     if topic != HHhdlist.topic_hqc_main_telemetry_notify_info:
                         HSyslog.log_info(f"Received Device message: '{receive_msg}' on topic {topic}")
+                    app_func_dict[topic]["func"](receive_dict.get("body", {}))
         except Exception as e:
             HSyslog.log_error(f"device _receive_messages: '{msg}' {e}")
 
@@ -178,10 +190,10 @@ class HMqttClient:
                         HSyslog.log_error(f"Send_to_Device: {e}")
             else:
                 if not HHhdlist.hd_send_data:
-                    time.sleep(0.1)
+                    time.sleep(0.01)
                 else:
                     if HHhdlist.hd_send_data.empty():
-                        time.sleep(0.1)
+                        time.sleep(0.01)
                     else:
                         msg = HHhdlist.hd_send_data.get()
                         HSyslog.log_info(f"Send_to_Device Faild: {msg}")
@@ -1386,18 +1398,22 @@ def _hqc_main_event_notify_charge_session(msg_body_dict: dict):  # 充电会话�
             HStategrid.Gun_list[gun_id].set_gun_charge({"main_gun": main_gun})
 
             if HStategrid.Gun_list[gun_id].get_gun_charge("start_source") == start_source:
-                info = {
-                    "gun_id": gun_id,
-                    "cmd_addr": HStategrid.Gun_Connect_Status.Start_Charge.value,
-                    "addr_data": "0000",
-                    "charge_id": cloud_session_id,
-                }
-                HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_108.value, info])
+                if HStategrid.Gun_list[gun_id].get_gun_charge("start_108") is None or HStategrid.Gun_list[gun_id].get_gun_charge("start_108") != 1:
+                    HStategrid.Gun_list[gun_id].set_gun_charge({"start_108": 1})
+                    info = {
+                        "gun_id": gun_id,
+                        "cmd_addr": HStategrid.Gun_Connect_Status.Start_Charge.value,
+                        "addr_data": "0000",
+                        "charge_id": cloud_session_id,
+                    }
+                    HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_108.value, info])
                 info = {
                     "gun_id": gun_id,
                 }
                 HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_104.value, info])
-                HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_304.value, info])
+                if HStategrid.Gun_list[gun_id].get_gun_charge("start_304") is None or HStategrid.Gun_list[gun_id].get_gun_charge("start_304") != 1:
+                    HStategrid.Gun_list[gun_id].set_gun_charge({"start_304": 1})
+                    HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_304.value, info])
                 HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_306.value, info])
 
             HStategrid.Gun_list[gun_id].gun_charge_session = True
@@ -1418,18 +1434,22 @@ def _hqc_main_event_notify_charge_session(msg_body_dict: dict):  # 充电会话�
                     HStategrid.Gun_list[gun_id].set_gun_charge({"main_gun": main_gun})
 
                     if HStategrid.Gun_list[gun_id].get_gun_charge("start_source") == start_source:
-                        info = {
-                            "gun_id": gun_id,
-                            "cmd_addr": HStategrid.Gun_Connect_Status.Start_Charge.value,
-                            "addr_data": "0000",
-                            "charge_id": cloud_session_id,
-                        }
-                        HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_108.value, info])
+                        if HStategrid.Gun_list[gun_id].get_gun_charge("start_108") is None or HStategrid.Gun_list[gun_id].get_gun_charge("start_108") != 1:
+                            HStategrid.Gun_list[gun_id].set_gun_charge({"start_108": 1})
+                            info = {
+                                "gun_id": gun_id,
+                                "cmd_addr": HStategrid.Gun_Connect_Status.Start_Charge.value,
+                                "addr_data": "0000",
+                                "charge_id": cloud_session_id,
+                            }
+                            HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_108.value, info])
                         info = {
                             "gun_id": gun_id,
                         }
                         HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_104.value, info])
-                        HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_304.value, info])
+                        if HStategrid.Gun_list[gun_id].get_gun_charge("start_304") is None or HStategrid.Gun_list[gun_id].get_gun_charge("start_304") != 1:
+                            HStategrid.Gun_list[gun_id].set_gun_charge({"start_304": 1})
+                            HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_304.value, info])
                         HHhdlist.device_platform_data.put([HStategrid.tpp_mqtt_cmd_enum.tpp_cmd_type_306.value, info])
 
                     HStategrid.Gun_list[gun_id].gun_charge_session = True
